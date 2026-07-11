@@ -11,4 +11,4 @@ cmake --build build
 
 echo "--------------------------------"
 
-./build/focuser $* param1=qwe param2=asd param3
+./build/focuser $*

@@ -1,8 +1,13 @@
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
+#include <filesystem>
 #include <fmt/color.h>
 #include <fmt/core.h>
 #include <memory>
 #include <opencv2/core.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/hal/interface.h>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/matx.hpp>
 #include <opencv2/core/types.hpp>
@@ -10,10 +15,14 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv4/opencv2/imgcodecs.hpp>
+#include <print>
+#include <string>
+#include <tuple>
 #include <unistd.h>
 #include <vector>
 
 using namespace fmt;
+namespace fs = std::filesystem;
 
 class App {
 public:
@@ -21,9 +30,49 @@ public:
   virtual ~App() { printf("~App()\n"); }
 };
 
+std::vector<std::string> glob(fs::path &dir) {
+  std::vector<std::string> result;
+
+  if (!fs::exists(dir)) {
+    return result;
+  }
+
+  auto iterator = fs::directory_iterator(dir);
+  for (const auto &file : iterator) {
+    if (file.is_regular_file()) {
+      result.push_back(file.path());
+    }
+  }
+
+  std::sort(result.begin(), result.end());
+
+  return result;
+}
+
+std::tuple<double, double> getSharpness(std::string file) {
+  cv::Mat image = cv::imread(file, cv::IMREAD_GRAYSCALE);
+
+  double sigmaNarrow = 1;
+  double sigmaWide = 10;
+
+  cv::Mat narrow, wide, dog;
+  cv::Size kernel = cv::Size(0, 0);
+  cv::GaussianBlur(image, narrow, kernel, sigmaNarrow, sigmaNarrow);
+  cv::GaussianBlur(image, wide, kernel, sigmaWide, sigmaWide);
+  cv::subtract(narrow, wide, dog);
+  
+  // cv::imshow("Image", imageNormalized);
+  // cv::waitKey(0);
+
+  cv::Scalar mean, stdDev;
+  cv::meanStdDev(dog, mean, stdDev);
+
+  return std::make_tuple(mean[0], stdDev[0]);
+}
+
 int main(int nArgs, char **args) {
   fmt::print(fg(fmt::color::violet), "OpencV Focuser\n");
-  setenv("QT_QPA_PLATFORM", "xcb", 1);
+  setenv("QT_QPA_PLATFORM", "xcb", 1); // Fixes QT windows on Wayland
 
   // Arguments
   for (int i = 0; i < nArgs; ++i) {
@@ -31,36 +80,16 @@ int main(int nArgs, char **args) {
     printf("Arg #%i: %s\n", i, arg);
   }
 
-  //////////////////////////////////////
-
-  auto path = "images/random/sky1.jpg";
-  auto input = cv::imread(path, cv::IMREAD_GRAYSCALE);
-
-  auto size = cv::Size(640, 480);
-  cv::Mat image, blurred, bw;
-  cv::resize(input, image, size);
-  cv::threshold(image, bw, 127, 255, cv::THRESH_BINARY);
-
-  // cv::adaptiveThreshold(image, bw, 255,
-  //   cv::ADAPTIVE_THRESH_GAUSSIAN_C,
-  //   cv::THRESH_BINARY_INV, 41, 20);
+  // Glob
+  fs::path dir = args[1];
+  std::vector files = glob(dir);
+  for (const auto &file : files) {
+    const auto name = fs::path(file).filename().string();
+    const auto [mean, stdDev] = getSharpness(file);
+    std::println("{} stdDev: {}", name, stdDev);
+  }
 
   //////////////////////////////////////
-
-  std::vector<std::vector<cv::Point>> contours;
-  std::vector<cv::Vec4i> hierarchy;
-  cv::findContours(bw, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
-
-  cv::Mat result = image.clone();
-  cv::Scalar color = cv::Scalar(0, 255, 0);
-  cv::drawContours(result, contours, -1, color, 2, cv::LINE_AA);
-
-  //////////////////////////////////////
-
-  cv::imshow("Image", result);
-  cv::imshow("Original", image);
-  cv::waitKey(0);
-  cv::destroyAllWindows();
 
   auto app = std::make_unique<App>();
 
