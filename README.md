@@ -2,7 +2,8 @@
 ```sh
 sudo apt update
 sudo apt install build-essential cmake gdb
-sudo apt install libfmt-dev nlohmann-json3-dev libopencv-dev
+sudo apt install libfmt-dev nlohmann-json3-dev
+sudo apt install libopencv-dev libcfitsio-devlibcfitsio-dev
 ```
 
 # Building

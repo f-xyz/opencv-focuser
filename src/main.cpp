@@ -1,10 +1,9 @@
-#include <algorithm>
-#include <cstdio>
-#include <cstring>
+#include <cassert>
 #include <filesystem>
 #include <fmt/color.h>
 #include <fmt/core.h>
-#include <memory>
+#include <format>
+#include <longnam.h>
 #include <opencv2/core.hpp>
 #include <opencv2/core/base.hpp>
 #include <opencv2/core/hal/interface.h>
@@ -15,11 +14,14 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv4/opencv2/imgcodecs.hpp>
-#include <print>
 #include <string>
 #include <tuple>
 #include <unistd.h>
 #include <vector>
+#include <print>
+#include <fitsio.h>
+#include "utils/utils.h"
+#include "FitsReader/FitsReader.h"
 
 using namespace fmt;
 namespace fs = std::filesystem;
@@ -29,25 +31,6 @@ public:
   App() { printf("App()\n"); }
   virtual ~App() { printf("~App()\n"); }
 };
-
-std::vector<std::string> glob(fs::path &dir) {
-  std::vector<std::string> result;
-
-  if (!fs::exists(dir)) {
-    return result;
-  }
-
-  auto iterator = fs::directory_iterator(dir);
-  for (const auto &file : iterator) {
-    if (file.is_regular_file()) {
-      result.push_back(file.path());
-    }
-  }
-
-  std::sort(result.begin(), result.end());
-
-  return result;
-}
 
 std::tuple<double, double> getSharpness(std::string file) {
   cv::Mat image = cv::imread(file, cv::IMREAD_GRAYSCALE);
@@ -60,8 +43,8 @@ std::tuple<double, double> getSharpness(std::string file) {
   cv::GaussianBlur(image, narrow, kernel, sigmaNarrow, sigmaNarrow);
   cv::GaussianBlur(image, wide, kernel, sigmaWide, sigmaWide);
   cv::subtract(narrow, wide, dog);
-  
-  // cv::imshow("Image", imageNormalized);
+
+  // cv::imshow("Image", dog);
   // cv::waitKey(0);
 
   cv::Scalar mean, stdDev;
@@ -73,11 +56,13 @@ std::tuple<double, double> getSharpness(std::string file) {
 int main(int nArgs, char **args) {
   fmt::print(fg(fmt::color::violet), "OpencV Focuser\n");
   setenv("QT_QPA_PLATFORM", "xcb", 1); // Fixes QT windows on Wayland
+  
+  auto app = std::make_unique<App>();
 
-  // Arguments
-  for (int i = 0; i < nArgs; ++i) {
-    const char *arg = args[i];
-    printf("Arg #%i: %s\n", i, arg);
+  // Arguments: move to App
+  if (nArgs < 2) {
+    std::println("Usage: focuser path/to/images");
+    return -1;
   }
 
   // Glob
@@ -85,13 +70,18 @@ int main(int nArgs, char **args) {
   std::vector files = glob(dir);
   for (const auto &file : files) {
     const auto name = fs::path(file).filename().string();
-    const auto [mean, stdDev] = getSharpness(file);
-    std::println("{} stdDev: {}", name, stdDev);
+    std::println("File: {}", name);
+
+    cv::Mat image = readFits(file);
+
+    cv::Mat preview;
+    cv::resize(image, preview, cv::Size(640, 480));
+    cv::imshow("Image", preview);
+    cv::waitKey(0);
+
+    // const auto [mean, stdDev] = getSharpness(file);
+    // std::println("{} stdDev: {}", name, stdDev);
   }
-
-  //////////////////////////////////////
-
-  auto app = std::make_unique<App>();
 
   return 0;
 }
