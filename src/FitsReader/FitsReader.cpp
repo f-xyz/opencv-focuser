@@ -1,5 +1,7 @@
+#include <cmath>
 #include <fitsio.h>
 #include <print>
+#include <cstring>
 #include <string>
 #include <opencv2/core.hpp>
 #include <opencv2/core/base.hpp>
@@ -13,7 +15,11 @@
 #include <opencv4/opencv2/imgcodecs.hpp>
 #include "FitsReader.h"
 
-DataType getDataType(int bitsPerPixel) {
+DataType getDataType(int bitsPerPixel, bool isUnsigned16) {
+  if (bitsPerPixel == SHORT_IMG && isUnsigned16) {
+    return {CV_16UC1, TUSHORT};
+  }
+
   switch (bitsPerPixel) {
     case BYTE_IMG:    return {CV_8UC1, TBYTE};
     case SHORT_IMG:   return {CV_16SC1, TSHORT};
@@ -24,32 +30,24 @@ DataType getDataType(int bitsPerPixel) {
   }
 }
 
-DataType getDataType(int bitsPerPixel, bool unsigned16) {
-  if (bitsPerPixel == SHORT_IMG && unsigned16) {
-    return {CV_16UC1, TUSHORT};
-  }
-
-  return getDataType(bitsPerPixel);
-}
-
 bool findImageHdu(fitsfile *fptr) {
   int nHdu = 1;
   int hduType = 0;
 
   while (true) {
-    int statusMove = 0;
+    int moveStatus = 0;
 
-    if (ffmahd(fptr, nHdu, &hduType, &statusMove) != 0) {
+    if (ffmahd(fptr, nHdu, &hduType, &moveStatus) != 0) {
       return false;
     }
 
     if (hduType == IMAGE_HDU) {
       int nDimensions = 0;
-      int statusGetImgDim = 0;
-      fits_get_img_dim(fptr, &nDimensions, &statusGetImgDim);
+      int getImgDimStatus = 0;
+      fits_get_img_dim(fptr, &nDimensions, &getImgDimStatus);
 
-      if (statusGetImgDim == 0 && nDimensions >= 2) {
-        return true;
+      if (getImgDimStatus == 0 && nDimensions >= 2) {
+        return true; // Found the image!
       }
     }
     ++nHdu;
@@ -59,11 +57,36 @@ bool findImageHdu(fitsfile *fptr) {
 }
 
 int getBayerCode(const std::string &pattern) {
-  if (pattern == "RGGB") return cv::COLOR_BayerRG2BGR;
-  if (pattern == "BGGR") return cv::COLOR_BayerBG2BGR;
-  if (pattern == "GRBG") return cv::COLOR_BayerGR2BGR;
-  if (pattern == "GBRG") return cv::COLOR_BayerGB2BGR;
+  if (pattern == "RGGB") return cv::COLOR_BayerRG2BGR_EA;
+  if (pattern == "BGGR") return cv::COLOR_BayerBG2BGR_EA;
+  if (pattern == "GRBG") return cv::COLOR_BayerGR2BGR_EA;
+  if (pattern == "GBRG") return cv::COLOR_BayerGB2BGR_EA;
   return -1;
+}
+
+FitsKeywords getKeywords(fitsfile *fptr) {
+  FitsKeywords keywords;
+  int status = 0;
+
+  fits_read_key(fptr, TDOUBLE, "BSCALE", &keywords.scale, nullptr, &status);
+  if (status == KEY_NO_EXIST) {
+    keywords.scale = 1.0;
+    status = 0;
+  }
+
+  fits_read_key(fptr, TDOUBLE, "BZERO", &keywords.zero, nullptr, &status);
+  if (status == KEY_NO_EXIST) {
+    keywords.zero = 0.0;
+    status = 0;
+  }
+
+  fits_read_key(fptr, TSTRING, "BAYERPAT", &keywords.bayer, nullptr, &status);
+  if (status == KEY_NO_EXIST) {
+    keywords.bayer[0] = '\0';
+    status = 0;
+  }
+
+  return keywords;
 }
 
 cv::Mat readFits(std::string file) {
@@ -84,50 +107,27 @@ cv::Mat readFits(std::string file) {
   int bitsPerPixel = 0;
   int nDimensions = 0;
   long dimensions[2] = {0, 0};
-  double scale = 1.0;
-  double zero = 0.0;
-  int scaleStatus = 0;
-  int zeroStatus = 0;
-  char bayerPattern[FLEN_VALUE] = {0};
-  int bayerStatus = 0;
 
   fits_get_img_param(fptr, 2, &bitsPerPixel, &nDimensions, dimensions, &status);
-  printf("  bitsPerPixel: %i\n", bitsPerPixel);
-  printf("  nDimensions: %i\n", nDimensions);
-  printf("  dimensions: {%li, %li}\n", dimensions[0], dimensions[1]);
-  printf("  fits_get_img_param status: %i\n", status);
+  std::println("  bitsPerPixel: {}", bitsPerPixel);
+  std::println("  nDimensions: {}", nDimensions);
+  std::println("  dimensions: {} x {}", dimensions[0], dimensions[1]);
+  std::println("  fits_get_img_param status: {}", status);
 
   if (status != 0) {
     fits_close_file(fptr, &status);
     return cv::Mat();
   }
 
-  fits_read_key(fptr, TDOUBLE, "BSCALE", &scale, nullptr, &scaleStatus);
-  if (scaleStatus == KEY_NO_EXIST) {
-    scaleStatus = 0;
-    scale = 1.0;
-  }
+  FitsKeywords keywords = getKeywords(fptr);
+  std::println("  BSCALE: {}", keywords.scale);
+  std::println("  BZERO: {}", keywords.zero);
+  std::println("  BAYERPAT: {}", keywords.bayer);
 
-  fits_read_key(fptr, TDOUBLE, "BZERO", &zero, nullptr, &zeroStatus);
-  if (zeroStatus == KEY_NO_EXIST) {
-    zeroStatus = 0;
-    zero = 0.0;
-  }
-
-  fits_read_key(fptr, TSTRING, "BAYERPAT", bayerPattern, nullptr, &bayerStatus);
-  if (bayerStatus == KEY_NO_EXIST) {
-    bayerStatus = 0;
-    bayerPattern[0] = '\0';
-  }
-
-  printf("  BSCALE: %f\n", scale);
-  printf("  BZERO: %f\n", zero);
-  if (bayerPattern[0] != '\0') {
-    printf("  BAYERPAT: %s\n", bayerPattern);
-  }
-
-  bool unsigned16 = bitsPerPixel == SHORT_IMG && scale == 1.0 && zero == 32768.0;
-  auto [cvType, fptrDataType] = getDataType(bitsPerPixel, unsigned16);
+  bool isUnsigned16 = bitsPerPixel == SHORT_IMG &&
+                      keywords.scale == 1.0 &&
+                      keywords.zero == 32768.0;
+  auto [cvType, fptrDataType] = getDataType(bitsPerPixel, isUnsigned16);
 
   auto [width, height] = dimensions;
   long nPixels = width * height;
@@ -136,7 +136,7 @@ cv::Mat readFits(std::string file) {
   long firstPixel[] = {1, 1};
   fits_read_pix(fptr, fptrDataType, firstPixel, nPixels, nullptr,
     raw.data, nullptr, &status);
-  printf("  fits_read_pix status: %i\n", status);
+  std::println("  fits_read_pix status: {}", status);
 
   if (status != 0) {
     fits_close_file(fptr, &status);
@@ -144,17 +144,18 @@ cv::Mat readFits(std::string file) {
   }
 
   fits_close_file(fptr, &status);
-  printf("  fits_close_file status: %i\n", status);
+  std::println("  fits_close_file status: {}", status);
 
-  if (bayerPattern[0] != '\0') {
-    const int bayerCode = getBayerCode(bayerPattern);
+  if (keywords.bayer[0] != '\0') {
+    const int bayerCode = getBayerCode(keywords.bayer);
     if (bayerCode >= 0) {
       cv::Mat bgr;
       cv::cvtColor(raw, bgr, bayerCode);
       return bgr;
     }
 
-    std::println("Warning: unsupported BAYERPAT {} in {}, returning raw image", bayerPattern, file);
+    std::println("Warning: unsupported BAYERPAT {} in {}, returning raw image",
+       keywords.bayer, file);
   }
 
   return raw;

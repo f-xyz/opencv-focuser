@@ -1,4 +1,6 @@
 #include <cassert>
+#include <cstdio>
+#include <expected>
 #include <filesystem>
 #include <fmt/color.h>
 #include <fmt/core.h>
@@ -15,7 +17,6 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv4/opencv2/imgcodecs.hpp>
 #include <string>
-#include <tuple>
 #include <unistd.h>
 #include <vector>
 #include <print>
@@ -23,18 +24,24 @@
 #include "utils/utils.h"
 #include "FitsReader/FitsReader.h"
 
-using namespace fmt;
 namespace fs = std::filesystem;
 
-class App {
-public:
-  App() { printf("App()\n"); }
-  virtual ~App() { printf("~App()\n"); }
-};
+std::expected<cv::Mat, std::string> readFile(const std::string &file) {
+  auto ext = fs::path(file).extension().string();
 
-std::tuple<double, double> getSharpness(cv::Mat image) {
-  // cv::Mat image = cv::imread(file, cv::IMREAD_GRAYSCALE);
+  if (ext.ends_with(".fit")) {
+    return readFits(file);
+  } else {
+    auto mat = cv::imread(file);
+    if (!mat.empty()) {
+      return mat;
+    } else {
+      return std::unexpected("Failed to decode image or file missing: " + file);
+    }
+  }
+}
 
+double getSharpness(cv::Mat image) {
   double sigmaNarrow = 1;
   double sigmaWide = 10;
 
@@ -44,20 +51,15 @@ std::tuple<double, double> getSharpness(cv::Mat image) {
   cv::GaussianBlur(image, wide, kernel, sigmaWide, sigmaWide);
   cv::subtract(narrow, wide, dog);
 
-  // cv::imshow("Image", dog);
-  // cv::waitKey(0);
-
   cv::Scalar mean, stdDev;
   cv::meanStdDev(dog, mean, stdDev);
 
-  return std::make_tuple(mean[0], stdDev[0]);
+  return stdDev[0];
 }
 
 int main(int nArgs, char **args) {
-  fmt::print(fg(fmt::color::violet), "OpencV Focuser\n");
   setenv("QT_QPA_PLATFORM", "xcb", 1); // Fixes QT windows on Wayland
-  
-  auto app = std::make_unique<App>();
+  fmt::print(fg(fmt::color::violet), "OpenCV Focuser Client\n");
 
   // Arguments: move to App
   if (nArgs < 2) {
@@ -72,20 +74,21 @@ int main(int nArgs, char **args) {
     fs::path path = fs::path(file);
     const auto name = path.filename().string();
     const auto ext = path.extension().string();
-    std::println("File: {}", name);
 
-    cv::Mat image = readFits(file);
-    // cv::Mat image = cv::imread(file);
+    auto result = readFile(file);
+    if (result) {
+      auto image = *result;
 
-    cv::Mat resized, preview;
-    cv::resize(image, resized, cv::Size(640, 480));
-    cv::normalize(resized, preview, 0, 255,
-       cv::NORM_MINMAX, CV_8UC1);
-    cv::imshow("Image", image);
-    cv::waitKey(0);
+      // cv::Mat preview;
+      // cv::resize(image, preview, cv::Size(640, 480));
+      // cv::imshow("Image", preview);
+      // cv::waitKey(0);
 
-    const auto [mean, stdDev] = getSharpness(image);
-    std::println("{} sharpness: {}", name, stdDev);
+      const auto sharpness = getSharpness(image);
+      std::println("{} -> sharpness: {}", name, sharpness);
+    } else {
+      std::println(stderr, "{}", result.error());
+    }
   }
 
   return 0;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fitsio.h>
 #include <string>
 #include <opencv2/core.hpp>
 #include <opencv2/core/base.hpp>
@@ -17,7 +18,15 @@ struct DataType {
   int fitsType;
 };
 
+struct FitsKeywords {
+  double scale = 1.0;
+  double zero = 0.0;
+  char bayer[FLEN_VALUE] = {0};
+};
+
 DataType getDataType(int bitsPerPixel);
+bool findImageHdu(fitsfile *fptr);
+int getBayerCode(const std::string &pattern);
 cv::Mat readFits(std::string file);
 
 ////////////////////////////////////////
