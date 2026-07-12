@@ -24,26 +24,32 @@ DataType getDataType(int bitsPerPixel) {
   }
 }
 
+DataType getDataType(int bitsPerPixel, bool unsigned16) {
+  if (bitsPerPixel == SHORT_IMG && unsigned16) {
+    return {CV_16UC1, TUSHORT};
+  }
+
+  return getDataType(bitsPerPixel);
+}
+
 bool findImageHdu(fitsfile *fptr) {
   int nHdu = 1;
   int hduType = 0;
 
   while (true) {
     int statusMove = 0;
-    
-    // Attempt to move to the absolute HDU index
+
     if (ffmahd(fptr, nHdu, &hduType, &statusMove) != 0) {
-        break; // Reached the true end of all extensions
+      return false;
     }
 
     if (hduType == IMAGE_HDU) {
       int nDimensions = 0;
       int statusGetImgDim = 0;
       fits_get_img_dim(fptr, &nDimensions, &statusGetImgDim);
-      
-      // A valid pixel array must have at least a 2D grid
+
       if (statusGetImgDim == 0 && nDimensions >= 2) {
-          return true; // Located the true image layer!
+        return true;
       }
     }
     ++nHdu;
@@ -52,20 +58,38 @@ bool findImageHdu(fitsfile *fptr) {
   return false;
 }
 
+int getBayerCode(const std::string &pattern) {
+  if (pattern == "RGGB") return cv::COLOR_BayerRG2BGR;
+  if (pattern == "BGGR") return cv::COLOR_BayerBG2BGR;
+  if (pattern == "GRBG") return cv::COLOR_BayerGR2BGR;
+  if (pattern == "GBRG") return cv::COLOR_BayerGB2BGR;
+  return -1;
+}
+
 cv::Mat readFits(std::string file) {
   fitsfile *fptr = nullptr;
   int status = 0;
 
-  if (fits_open_file(&fptr, file.data(), READONLY, &status)) {
+  if (fits_open_file(&fptr, file.c_str(), READONLY, &status)) {
     std::println("Error opening file {}, status {}", file, status);
+    return cv::Mat();
+  }
+
+  if (!findImageHdu(fptr)) {
+    std::println("Error: no 2D image HDU found in {}", file);
+    fits_close_file(fptr, &status);
     return cv::Mat();
   }
 
   int bitsPerPixel = 0;
   int nDimensions = 0;
   long dimensions[2] = {0, 0};
-
-  findImageHdu(fptr);
+  double scale = 1.0;
+  double zero = 0.0;
+  int scaleStatus = 0;
+  int zeroStatus = 0;
+  char bayerPattern[FLEN_VALUE] = {0};
+  int bayerStatus = 0;
 
   fits_get_img_param(fptr, 2, &bitsPerPixel, &nDimensions, dimensions, &status);
   printf("  bitsPerPixel: %i\n", bitsPerPixel);
@@ -78,19 +102,64 @@ cv::Mat readFits(std::string file) {
     return cv::Mat();
   }
 
-  auto [cvType, fptrDataType] = getDataType(bitsPerPixel);
+  fits_read_key(fptr, TDOUBLE, "BSCALE", &scale, nullptr, &scaleStatus);
+  if (scaleStatus == KEY_NO_EXIST) {
+    scaleStatus = 0;
+    scale = 1.0;
+  }
+
+  fits_read_key(fptr, TDOUBLE, "BZERO", &zero, nullptr, &zeroStatus);
+  if (zeroStatus == KEY_NO_EXIST) {
+    zeroStatus = 0;
+    zero = 0.0;
+  }
+
+  fits_read_key(fptr, TSTRING, "BAYERPAT", bayerPattern, nullptr, &bayerStatus);
+  if (bayerStatus == KEY_NO_EXIST) {
+    bayerStatus = 0;
+    bayerPattern[0] = '\0';
+  }
+
+  printf("  BSCALE: %f\n", scale);
+  printf("  BZERO: %f\n", zero);
+  if (bayerPattern[0] != '\0') {
+    printf("  BAYERPAT: %s\n", bayerPattern);
+  }
+
+  bool unsigned16 = bitsPerPixel == SHORT_IMG && scale == 1.0 && zero == 32768.0;
+  auto [cvType, fptrDataType] = getDataType(bitsPerPixel, unsigned16);
 
   auto [width, height] = dimensions;
   long nPixels = width * height;
-  cv::Mat image(height, width, cvType);
+  cv::Mat raw(height, width, cvType);
 
   long firstPixel[] = {1, 1};
   fits_read_pix(fptr, fptrDataType, firstPixel, nPixels, nullptr,
-    image.data, nullptr, &status);
+    raw.data, nullptr, &status);
   printf("  fits_read_pix status: %i\n", status);
+
+  if (status != 0) {
+    fits_close_file(fptr, &status);
+    return cv::Mat();
+  }
 
   fits_close_file(fptr, &status);
   printf("  fits_close_file status: %i\n", status);
 
-  return image;
+  if (bayerPattern[0] != '\0') {
+    const int bayerCode = getBayerCode(bayerPattern);
+    if (bayerCode >= 0) {
+      cv::Mat bgr;
+      cv::cvtColor(raw, bgr, bayerCode);
+      return bgr;
+    }
+
+    std::println("Warning: unsupported BAYERPAT {} in {}, returning raw image", bayerPattern, file);
+  }
+
+  return raw;
+}
+
+cv::Mat FitsReader::readFits(std::string file) {
+  return ::readFits(file);
 }

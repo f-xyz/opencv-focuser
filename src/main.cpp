@@ -32,8 +32,8 @@ public:
   virtual ~App() { printf("~App()\n"); }
 };
 
-std::tuple<double, double> getSharpness(std::string file) {
-  cv::Mat image = cv::imread(file, cv::IMREAD_GRAYSCALE);
+std::tuple<double, double> getSharpness(cv::Mat image) {
+  // cv::Mat image = cv::imread(file, cv::IMREAD_GRAYSCALE);
 
   double sigmaNarrow = 1;
   double sigmaWide = 10;
@@ -61,7 +61,7 @@ int main(int nArgs, char **args) {
 
   // Arguments: move to App
   if (nArgs < 2) {
-    std::println("Usage: focuser path/to/images");
+    std::println("Usage: focuser path/to/image/dir");
     return -1;
   }
 
@@ -69,18 +69,23 @@ int main(int nArgs, char **args) {
   fs::path dir = args[1];
   std::vector files = glob(dir);
   for (const auto &file : files) {
-    const auto name = fs::path(file).filename().string();
+    fs::path path = fs::path(file);
+    const auto name = path.filename().string();
+    const auto ext = path.extension().string();
     std::println("File: {}", name);
 
     cv::Mat image = readFits(file);
+    // cv::Mat image = cv::imread(file);
 
-    cv::Mat preview;
-    cv::resize(image, preview, cv::Size(640, 480));
-    cv::imshow("Image", preview);
+    cv::Mat resized, preview;
+    cv::resize(image, resized, cv::Size(640, 480));
+    cv::normalize(resized, preview, 0, 255,
+       cv::NORM_MINMAX, CV_8UC1);
+    cv::imshow("Image", image);
     cv::waitKey(0);
 
-    // const auto [mean, stdDev] = getSharpness(file);
-    // std::println("{} stdDev: {}", name, stdDev);
+    const auto [mean, stdDev] = getSharpness(image);
+    std::println("{} sharpness: {}", name, stdDev);
   }
 
   return 0;
