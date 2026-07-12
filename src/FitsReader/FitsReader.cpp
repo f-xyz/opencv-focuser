@@ -1,43 +1,49 @@
-#include <cmath>
 #include <fitsio.h>
-#include <print>
-#include <cstring>
-#include <string>
-#include <opencv2/core.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/hal/interface.h>
 #include <opencv2/core/mat.hpp>
-#include <opencv2/core/matx.hpp>
-#include <opencv2/core/types.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv4/opencv2/imgcodecs.hpp>
+#include <print>
+#include <string>
+#include <vector>
 #include "FitsReader.h"
 
-DataType getDataType(int bitsPerPixel, bool isUnsigned16) {
-  if (bitsPerPixel == SHORT_IMG && isUnsigned16) {
-    return {CV_16UC1, TUSHORT};
+cv::Mat FitsReader::read(const std::string &file) {
+  const auto fptr = openFile(file);
+  if (!fptr) {
+    return {};
   }
 
-  switch (bitsPerPixel) {
-    case BYTE_IMG:    return {CV_8UC1, TBYTE};
-    case SHORT_IMG:   return {CV_16SC1, TSHORT};
-    case USHORT_IMG:  return {CV_16UC1, TUSHORT};
-    case LONG_IMG:    return {CV_32SC1, TLONG};
-    case FLOAT_IMG:   return {CV_32FC1, TFLOAT};
-    default:          return {CV_8UC1, TBYTE};
+  if (!findFirstImageHdu(fptr)) {
+    return {};
   }
+
+  const auto params = getImageParams(fptr);
+  const auto image = readImage(fptr, params);
+  closeFile(fptr);
+  
+  auto result = demosaic(image, params.bayer);
+  return result;
 }
 
-bool findImageHdu(fitsfile *fptr) {
+fitsfile *FitsReader::openFile(const std::string &file) {
+  fitsfile *fptr = nullptr;
+  int status = 0;
+
+  if (fits_open_file(&fptr, file.c_str(), READONLY, &status)) {
+    std::println("Error opening file {}, status {}", file, status);
+    return nullptr;
+  }
+
+  return fptr;
+}
+
+bool FitsReader::findFirstImageHdu(fitsfile *fptr) {
   int nHdu = 1;
   int hduType = 0;
 
   while (true) {
     int moveStatus = 0;
-
-    if (ffmahd(fptr, nHdu, &hduType, &moveStatus) != 0) {
+    if (fits_movabs_hdu(fptr, nHdu, &hduType, &moveStatus) != 0) {
+      closeFile(fptr);
       return false;
     }
 
@@ -50,13 +56,92 @@ bool findImageHdu(fitsfile *fptr) {
         return true; // Found the image!
       }
     }
+
     ++nHdu;
   }
+
+  std::println(stderr, "Error: no 2D image HDU found.");
+  closeFile(fptr);
 
   return false;
 }
 
-int getBayerCode(const std::string &pattern) {
+ImageParams FitsReader::getImageParams(fitsfile *fptr) {
+  int status = 0;
+  ImageParams result;
+
+  // Dimensions
+  fits_get_img_param(fptr, 2, nullptr, &result.nDimensions, result.dimensions, &status);
+  if (status != 0) {
+    std::println(stderr, "fits_get_img_param failed {}", status);
+    return {};
+  }
+
+  // Bits per pixel
+  fits_get_img_equivtype(fptr, &result.bitsPerPixel, &status);
+  if (status != 0) {
+    std::println(stderr, "fits_get_img_equivtype failed {}", status);
+    return {};
+  }
+
+  // Bayer array pattern
+  fits_read_key(fptr, TSTRING, "BAYERPAT", &result.bayer, nullptr, &status);
+  if (status != 0) {
+    // Missing BAYERPAT is normal for monochrome images; reset status and continue.
+    status = 0;
+    result.bayer[0] = '\0';
+  }
+
+  return result;
+}
+
+cv::Mat FitsReader::readImage(fitsfile *fptr, const ImageParams &params) {
+  auto [width, height] = params.dimensions;
+  auto [cvType, fitsType] = getDataTypes(params);
+  cv::Mat image(height, width, cvType);
+
+  int status = 0;
+  std::vector<long> firstPixel(params.nDimensions, 1); // FITS starts counting from 1
+  fits_read_pix(fptr, fitsType, firstPixel.data(),
+    width * height, nullptr, image.data, nullptr,
+    &status);
+
+  if (status != 0) {
+    return {};
+  }
+
+  return image;
+}
+
+DataType FitsReader::getDataTypes(const ImageParams &params) {
+  switch (params.bitsPerPixel) {
+    case BYTE_IMG:    return {CV_8UC1, TBYTE};
+    case SHORT_IMG:   return {CV_16SC1, TSHORT};
+    case USHORT_IMG:  return {CV_16UC1, TUSHORT};
+    case LONG_IMG:    return {CV_32SC1, TLONG};
+    case FLOAT_IMG:   return {CV_32FC1, TFLOAT};
+    case DOUBLE_IMG:  return {CV_64FC1, TDOUBLE};
+    default:          return {CV_8UC1, TBYTE};
+  }
+}
+
+cv::Mat FitsReader::demosaic(const cv::Mat &image, const char *bayer) {
+  if (bayer[0] != '\0') {
+    const int bayerCode = getBayerCode(bayer);
+    if (bayerCode >= 0) {
+      cv::Mat bgr;
+      cv::cvtColor(image, bgr, bayerCode);
+      return bgr;
+    }
+
+    std::println("Warning: unsupported BAYERPAT {}, returning raw image",
+      bayer);
+  }
+
+  return image;
+}
+
+int FitsReader::getBayerCode(const std::string &pattern) {
   if (pattern == "RGGB") return cv::COLOR_BayerRG2BGR_EA;
   if (pattern == "BGGR") return cv::COLOR_BayerBG2BGR_EA;
   if (pattern == "GRBG") return cv::COLOR_BayerGR2BGR_EA;
@@ -64,103 +149,8 @@ int getBayerCode(const std::string &pattern) {
   return -1;
 }
 
-FitsKeywords getKeywords(fitsfile *fptr) {
-  FitsKeywords keywords;
+int FitsReader::closeFile(fitsfile *fptr) {
   int status = 0;
-
-  fits_read_key(fptr, TDOUBLE, "BSCALE", &keywords.scale, nullptr, &status);
-  if (status == KEY_NO_EXIST) {
-    keywords.scale = 1.0;
-    status = 0;
-  }
-
-  fits_read_key(fptr, TDOUBLE, "BZERO", &keywords.zero, nullptr, &status);
-  if (status == KEY_NO_EXIST) {
-    keywords.zero = 0.0;
-    status = 0;
-  }
-
-  fits_read_key(fptr, TSTRING, "BAYERPAT", &keywords.bayer, nullptr, &status);
-  if (status == KEY_NO_EXIST) {
-    keywords.bayer[0] = '\0';
-    status = 0;
-  }
-
-  return keywords;
-}
-
-cv::Mat readFits(std::string file) {
-  fitsfile *fptr = nullptr;
-  int status = 0;
-
-  if (fits_open_file(&fptr, file.c_str(), READONLY, &status)) {
-    std::println("Error opening file {}, status {}", file, status);
-    return cv::Mat();
-  }
-
-  if (!findImageHdu(fptr)) {
-    std::println("Error: no 2D image HDU found in {}", file);
-    fits_close_file(fptr, &status);
-    return cv::Mat();
-  }
-
-  int bitsPerPixel = 0;
-  int nDimensions = 0;
-  long dimensions[2] = {0, 0};
-
-  fits_get_img_param(fptr, 2, &bitsPerPixel, &nDimensions, dimensions, &status);
-  std::println("  bitsPerPixel: {}", bitsPerPixel);
-  std::println("  nDimensions: {}", nDimensions);
-  std::println("  dimensions: {} x {}", dimensions[0], dimensions[1]);
-  std::println("  fits_get_img_param status: {}", status);
-
-  if (status != 0) {
-    fits_close_file(fptr, &status);
-    return cv::Mat();
-  }
-
-  FitsKeywords keywords = getKeywords(fptr);
-  std::println("  BSCALE: {}", keywords.scale);
-  std::println("  BZERO: {}", keywords.zero);
-  std::println("  BAYERPAT: {}", keywords.bayer);
-
-  bool isUnsigned16 = bitsPerPixel == SHORT_IMG &&
-                      keywords.scale == 1.0 &&
-                      keywords.zero == 32768.0;
-  auto [cvType, fptrDataType] = getDataType(bitsPerPixel, isUnsigned16);
-
-  auto [width, height] = dimensions;
-  long nPixels = width * height;
-  cv::Mat raw(height, width, cvType);
-
-  long firstPixel[] = {1, 1};
-  fits_read_pix(fptr, fptrDataType, firstPixel, nPixels, nullptr,
-    raw.data, nullptr, &status);
-  std::println("  fits_read_pix status: {}", status);
-
-  if (status != 0) {
-    fits_close_file(fptr, &status);
-    return cv::Mat();
-  }
-
   fits_close_file(fptr, &status);
-  std::println("  fits_close_file status: {}", status);
-
-  if (keywords.bayer[0] != '\0') {
-    const int bayerCode = getBayerCode(keywords.bayer);
-    if (bayerCode >= 0) {
-      cv::Mat bgr;
-      cv::cvtColor(raw, bgr, bayerCode);
-      return bgr;
-    }
-
-    std::println("Warning: unsupported BAYERPAT {} in {}, returning raw image",
-       keywords.bayer, file);
-  }
-
-  return raw;
-}
-
-cv::Mat FitsReader::readFits(std::string file) {
-  return ::readFits(file);
+  return status;
 }

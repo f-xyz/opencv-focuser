@@ -2,8 +2,17 @@
 ```sh
 sudo apt update
 sudo apt install build-essential cmake gdb
+sudo apt install libopencv-dev # OpenCV
+sudo apt install libcfitsio-devlibcfitsio-dev # CFITSIO
+sudo apt install libindi-dev # INDI
 sudo apt install libfmt-dev nlohmann-json3-dev
-sudo apt install libopencv-dev libcfitsio-devlibcfitsio-dev
+```
+
+# Installing INDI
+```sh
+sudo apt-add-repository ppa:mutlaqja/ppa
+sudo apt update
+sudo apt install indi-full indi-asi
 ```
 
 # Building
@@ -11,10 +20,7 @@ sudo apt install libopencv-dev libcfitsio-devlibcfitsio-dev
 ./build.sh
 ```
 
-# VCPKG
+# Starting INDI server
 ```sh
-vcpkg new --application
-vcpkg add port fmt
-vcpkg add port nlohmann-json
-vcpkg add port opencv4
+indiserver -v indi_simulator_ccd indi_andr_focuser
 ```

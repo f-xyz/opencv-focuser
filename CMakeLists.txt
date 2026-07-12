@@ -11,12 +11,17 @@ find_package(nlohmann_json REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(CFITSIO REQUIRED cfitsio)
+pkg_check_modules(INDI REQUIRED IMPORTED_TARGET libindi)
 
-add_executable(focuser 
-  src/main.cpp
-  src/utils/utils.cpp
-  src/FitsReader/FitsReader.cpp
-)
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    set(CMAKE_C_COMPILER_LAUNCHER   ${CCACHE_PROGRAM})
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+endif()
+
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+
+add_executable(focuser ${SOURCES})
 
 target_include_directories(focuser PRIVATE
   ${OpenCV_INCLUDE_DIRS}
@@ -26,6 +31,7 @@ target_include_directories(focuser PRIVATE
 target_link_libraries(focuser PRIVATE
   ${OpenCV_LIBS}
   ${CFITSIO_LIBRARIES}
+  PkgConfig::INDI
   fmt::fmt
   nlohmann_json::nlohmann_json
 )

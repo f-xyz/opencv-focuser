@@ -1,94 +1,62 @@
-#include <cassert>
-#include <cstdio>
-#include <expected>
-#include <filesystem>
-#include <fmt/color.h>
-#include <fmt/core.h>
-#include <format>
-#include <longnam.h>
-#include <opencv2/core.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/hal/interface.h>
-#include <opencv2/core/mat.hpp>
-#include <opencv2/core/matx.hpp>
-#include <opencv2/core/types.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv4/opencv2/imgcodecs.hpp>
-#include <string>
-#include <unistd.h>
-#include <vector>
-#include <print>
-#include <fitsio.h>
 #include "utils/utils.h"
 #include "FitsReader/FitsReader.h"
+#include "SharpnessEstimator/SharpnessEstimator.h"
+#include "CameraFinder/CameraFinder.h"
+#include <cstdio>
+#include <print>
+#include <string>
+#include <opencv2/core/cvstd.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace fs = std::filesystem;
 
-std::expected<cv::Mat, std::string> readFile(const std::string &file) {
+cv::Mat readFile(const std::string &file) {
   auto ext = fs::path(file).extension().string();
-
-  if (ext.ends_with(".fit")) {
-    return readFits(file);
+  if (ext == ".fit" || ext == ".fits") {
+    FitsReader fits;
+    cv::Mat image = fits.read(file);
+    return image;
   } else {
-    auto mat = cv::imread(file);
-    if (!mat.empty()) {
-      return mat;
-    } else {
-      return std::unexpected("Failed to decode image or file missing: " + file);
-    }
+    return cv::imread(file);
   }
 }
 
-double getSharpness(cv::Mat image) {
-  double sigmaNarrow = 1;
-  double sigmaWide = 10;
-
-  cv::Mat narrow, wide, dog;
-  cv::Size kernel = cv::Size(0, 0);
-  cv::GaussianBlur(image, narrow, kernel, sigmaNarrow, sigmaNarrow);
-  cv::GaussianBlur(image, wide, kernel, sigmaWide, sigmaWide);
-  cv::subtract(narrow, wide, dog);
-
-  cv::Scalar mean, stdDev;
-  cv::meanStdDev(dog, mean, stdDev);
-
-  return stdDev[0];
-}
-
-int main(int nArgs, char **args) {
+int main(const int nArgs, const char **args) {
   setenv("QT_QPA_PLATFORM", "xcb", 1); // Fixes QT windows on Wayland
-  fmt::print(fg(fmt::color::violet), "OpenCV Focuser Client\n");
+  std::println("OpenCV Focuser Client");
 
-  // Arguments: move to App
   if (nArgs < 2) {
-    std::println("Usage: focuser path/to/image/dir");
+    std::println("Usage: ./focuser path/to/image/dir");
     return -1;
   }
 
-  // Glob
-  fs::path dir = args[1];
-  std::vector files = glob(dir);
-  for (const auto &file : files) {
-    fs::path path = fs::path(file);
-    const auto name = path.filename().string();
-    const auto ext = path.extension().string();
+  //////////////////////////////////////
 
-    auto result = readFile(file);
-    if (result) {
-      auto image = *result;
+  // TODO
 
-      // cv::Mat preview;
-      // cv::resize(image, preview, cv::Size(640, 480));
-      // cv::imshow("Image", preview);
-      // cv::waitKey(0);
+  //////////////////////////////////////
 
-      const auto sharpness = getSharpness(image);
-      std::println("{} -> sharpness: {}", name, sharpness);
-    } else {
-      std::println(stderr, "{}", result.error());
-    }
+  const std::string dir = joinArgs(nArgs, args);
+  const std::vector files = readDir(dir);
+
+  for (auto &file : files) {
+    const cv::Mat image = readFile(file);
+
+    const int w = image.cols;
+    const int h = image.rows;
+    const auto rect = cv::Rect(w / 4, h / 4, w / 2, h / 2);
+    const auto roi = image(rect);
+
+    // cv::Mat preview;
+    // cv::resize(image, preview, cv::Size(640, 480));
+    // cv::imshow("Image", image);
+    // cv::waitKey(0);
+
+    SharpnessEstimator estimator;
+    auto sharpness = estimator.getSharpnessGaussian(roi);
+    auto name = fs::path(file).filename().string();
+    std::println("{} -> sharpness: {}", name, sharpness);
   }
 
   return 0;

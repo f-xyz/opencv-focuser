@@ -1,10 +1,23 @@
+#include <filesystem>
 #include <string>
 #include <vector>
-#include <filesystem>
 
 namespace fs = std::filesystem;
 
-std::vector<std::string> glob(fs::path &dir) {
+std::string joinArgs(int nArgs, const char **args) {
+  std::string result = "";
+
+  for (int i = 1; i < nArgs; ++i) {
+    result += args[i];
+    if (i < nArgs - 1) {
+      result += " ";
+    }
+  }
+
+  return result;
+}
+
+std::vector<std::string> readDir(const fs::path &dir) {
   std::vector<std::string> result;
 
   if (!fs::exists(dir)) {

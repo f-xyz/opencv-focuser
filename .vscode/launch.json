@@ -6,7 +6,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/build/focuser",
-      "args": [],
+      "args": ["images/datasets/fits/"],
       "cwd": "${workspaceFolder}",
       "targetArchitecture": "x64",
       "stopAtEntry": false,
