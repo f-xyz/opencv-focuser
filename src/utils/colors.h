@@ -32,10 +32,10 @@ Advanced Colors (256-Color & True Color RGB)
 #define BOLD_CYAN    "\033[1m\033[36m"
 #define BOLD_WHITE   "\033[1m\033[37m"
 
-inline std::string rgb(const std::string &s, unsigned char r, unsigned g, unsigned b) {
-  std::string red = std::to_string(r);
-  std::string green = std::to_string(g);
-  std::string blue = std::to_string(b);
+constexpr inline std::string rgb(const std::string &s, unsigned char r, unsigned g, unsigned b) {
+  auto red = std::to_string(r);
+  auto green = std::to_string(g);
+  auto blue = std::to_string(b);
   
   return "\033[38;2;" + red + ";" + green + ";" + blue + "m" + s + RESET;
 }

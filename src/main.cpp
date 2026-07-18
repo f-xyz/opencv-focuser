@@ -1,13 +1,22 @@
-#include "utils/utils.h"
-#include "FitsReader/FitsReader.h"
-#include "SharpnessEstimator/SharpnessEstimator.h"
-#include "CameraFinder/CameraFinder.h"
+#include <abstractbaseclient.h>
+#include <algorithm>
 #include <cstdio>
-#include <print>
-#include <string>
+#include <cstring>
+#include <indiapi.h>
+#include <indibasetypes.h>
+#include <iostream>
 #include <opencv2/core/cvstd.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <print>
+#include <string>
+#include <libindi/baseclient.h>
+#include <libindi/indiproperty.h>
+#include <libindi/defaultdevice.h>
+#include "FitsReader/FitsReader.h"
+#include "SharpnessEstimator/SharpnessEstimator.h"
+#include "utils/utils.h"
+#include "utils/colors.h"
 
 namespace fs = std::filesystem;
 
@@ -24,7 +33,7 @@ cv::Mat readFile(const std::string &file) {
 
 int main(const int nArgs, const char **args) {
   setenv("QT_QPA_PLATFORM", "xcb", 1); // Fixes QT windows on Wayland
-  std::println("OpenCV Focuser Client");
+  std::println("{}", rgb("OpenCV Focuser", 196, 0, 255));
 
   if (nArgs < 2) {
     std::println("Usage: ./focuser path/to/image/dir");
@@ -33,7 +42,82 @@ int main(const int nArgs, const char **args) {
 
   //////////////////////////////////////
 
-  // TODO
+  struct Camera {
+    std::string name = "";
+    int width = 0;
+    int height = 0;
+  };
+
+  class INDIClient : public INDI::BaseClient {
+    public:
+      std::vector<Camera> cameras;
+
+      Camera getBiggestCamera() {
+        return cameras[0];
+      };
+
+    protected:
+      void newDevice(INDI::BaseDevice device) override {
+        // std::println("* Device: {}", device.getDeviceName());
+      }
+
+      void newProperty(INDI::Property property) override {
+        auto deviceName = property.getDeviceName();
+        bool isConnection = strcmp(property.getName(), "CONNECTION") == 0;
+        bool isCCDInfo = strcmp(property.getName(), "CCD_INFO") == 0;
+        bool isNumberProp = property.getType() == INDI_NUMBER;
+
+        if (isConnection) {
+          auto connection = property.getSwitch();
+
+          if (connection->sp[0].s == ISS_OFF) {
+            connection->sp[0].s = ISS_ON; // Connect to ON
+            connection->sp[1].s = ISS_OFF; // Disconnect to OFF
+            sendNewSwitch(connection);
+          }
+        }
+
+        if (isCCDInfo && isNumberProp) {
+          auto numberView = property.getNumber();
+
+          int width = 0;
+          int height = 0;
+
+          for (int i = 0; i < numberView->count(); ++i) {
+            if (strcmp(numberView->np[i].name, "CCD_MAX_X") == 0) {
+              width = numberView->np[i].value;
+            } else if (strcmp(numberView->np[i].name, "CCD_MAX_Y") == 0) {
+              height = numberView->np[i].value;
+            }
+          }
+
+          cameras.push_back(Camera {
+            deviceName,
+            width,
+            height
+          });
+
+          std::ranges::sort(cameras, compare);
+          std::println("* {}: {}x{}", deviceName, width, height);
+        }
+      }
+
+      static bool compare(const Camera &a, const Camera &b) {
+        return a.width * a.height > b.width * b.height;
+      }
+  };
+
+  //////////////////////////////////////
+
+  INDIClient indi;
+  indi.setServer("localhost", 7624);
+  if (!indi.connectServer()) {
+    std::println("Connection to INDI server failed.");
+  }
+
+  std::cin.get();
+  indi.disconnectServer(0);
+  exit(0);
 
   //////////////////////////////////////
 
