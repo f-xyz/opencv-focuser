@@ -2,13 +2,13 @@
 
 #include <algorithm>
 #include <chrono>
-#include <ctime>
 #include <filesystem>
 #include <functional>
 #include <mutex>
 #include <print>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -33,7 +33,7 @@ public:
 
 ////////////////////////////////////////
 
-inline void setTimeout(std::function<void()> callback, int delayMs) {
+inline void setTimeout(const std::function<void()>& callback, int delayMs) {
   std::thread([delayMs, callback]() {
     auto ms = std::chrono::milliseconds(delayMs);
     std::this_thread::sleep_for(ms);
@@ -49,8 +49,8 @@ private:
   std::mutex mutex;
 
 public:
-  explicit Throttle(int delayMs, std::function<void()> callback)
-    : delayMs(delayMs), callback(callback) {}
+  explicit Throttle(const int delayMs, std::function<void()> callback)
+    : delayMs(delayMs), callback(std::move(callback)) {}
 
   void call() {
     if (isWaiting) {
