@@ -22,23 +22,6 @@ sudo apt install indi-full indi-asi
 
 # Starting INDI server
 ```sh
-indiserver -v indi_asi_ccd indi_v4l2_ccd indi_andr_focuser
-```
-
-# Log
-```
-OpenCV Focuser
-INDI::BaseClient::connectServer: creating new connection...
-* Device: Celestron Advanced VX HC
-* Device: AndrFocuser
-* Device: Manual Filter
-* Camera: ZWO CCD ASI294MC Pro
-* Property: ZWO CCD ASI294MC Pro / CCD_INFO / 4144x2822
-Done!
-* Camera: ZWO CCD ASI120MC-S
-* Property: ZWO CCD ASI120MC-S / CCD_INFO / 1280x960
-Done!
-Really done!
-Really done!
-
+indiserver -v indi_andr_focuser indi_asi_ccd indi_v4l2_ccd
+indiserver -v indi_andr_focuser indi_asi_ccd indi_v4l2_ccd 2>&1 indi.log
 ```

@@ -6,6 +6,8 @@
 #include <iostream>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+#include <print>
 
 namespace fs = std::filesystem;
 
@@ -35,15 +37,24 @@ int main(const int nArgs, const char **args) {
       std::println("  * {}: {}x{}", x.name, x.width, x.height);
     }
 
-    std::println("\nShooting...");
-    auto camera = indi.cameras.front();
-    auto result = indi.shoot(camera, 0.1);
-    auto image = result.get();
+    for (int i = 0; i < 5; ++i) {
+      auto camera = indi.cameras.front();
+      auto result = indi.shoot(camera, 0.1);
+      auto image = result.get();
+      auto sharpness = SharpnessEstimator().getSharpnessGaussian(image);
+      std::println("  * Sharpness: {}", sharpness);
 
-    cv::imshow("Exposure", image);
-    cv::waitKey(0);
-    cv::destroyAllWindows();
-    exit(0);
+      // cv::Mat preview;
+      // cv::Size size = cv::Size(640, 480);
+      // cv::resize(image, preview, size);
+      // cv::imshow("Exposure", preview);
+      // cv::waitKey(0);
+      // cv::destroyAllWindows();
+
+      auto movePromise = indi.move(false, 500);
+      auto moveResult = movePromise.get();
+      std::println("Moved: {}", moveResult);
+    }
   });
 
   std::cin.get();
@@ -61,11 +72,6 @@ int main(const int nArgs, const char **args) {
     const int h = image.rows;
     const auto rect = cv::Rect(w / 4, h / 4, w / 2, h / 2);
     const auto roi = image(rect);
-
-    // cv::Mat preview;
-    // cv::resize(image, preview, cv::Size(640, 480));
-    // cv::imshow("Image", image);
-    // cv::waitKey(0);
 
     SharpnessEstimator estimator;
     auto sharpness = estimator.getSharpnessGaussian(roi);

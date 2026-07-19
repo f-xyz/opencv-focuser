@@ -1,9 +1,9 @@
 #pragma once
 
-#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <functional>
+#include <future>
 #include <mutex>
 #include <print>
 #include <string>
@@ -13,11 +13,40 @@
 
 namespace fs = std::filesystem;
 
-std::string joinArgs(int nArgs, const char **args);
-std::vector<std::string> readDir(const fs::path &dir);
+inline std::string joinArgs(int nArgs, const char **args) {
+  std::string result = "";
+
+  for (int i = 1; i < nArgs; ++i) {
+    result += args[i];
+    if (i < nArgs - 1) {
+      result += " ";
+    }
+  }
+
+  return result;
+}
+
+inline std::vector<std::string> readDir(const fs::path &dir) {
+  std::vector<std::string> result;
+
+  if (!fs::exists(dir)) {
+    return result;
+  }
+
+  auto iterator = fs::directory_iterator(dir);
+  for (const auto &file : iterator) {
+    if (file.is_regular_file()) {
+      result.push_back(file.path());
+    }
+  }
+
+  std::sort(result.begin(), result.end());
+
+  return result;
+}
 
 ////////////////////////////////////////
-// Fun area ////////////////////////////
+// Experiments /////////////////////////
 ////////////////////////////////////////
 
 template <typename T>
@@ -40,6 +69,22 @@ inline void setTimeout(const std::function<void()>& callback, int delayMs) {
     callback();
   }).detach();
 }
+
+////////////////////////////////////////
+
+template <typename T>
+static void fulfillPromise(std::unique_ptr<std::promise<T>> &promise, T value) {
+  if (promise) {
+    try {
+      promise->set_value(value);
+    } catch (const std::future_error &) {
+      // Promise was already fulfilled elsewhere
+    }
+    promise.reset();
+  }
+}
+
+////////////////////////////////////////
 
 class Throttle {
 private:
