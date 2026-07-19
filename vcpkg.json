@@ -1,6 +1,5 @@
 {
   "dependencies": [
-    "fmt",
     "nlohmann-json",
     "opencv4"
   ]

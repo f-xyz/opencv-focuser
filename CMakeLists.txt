@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_BUILD_TYPE Debug)
 
-find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(PkgConfig REQUIRED)
@@ -15,8 +14,8 @@ pkg_check_modules(INDI REQUIRED IMPORTED_TARGET libindi)
 
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
-    set(CMAKE_C_COMPILER_LAUNCHER   ${CCACHE_PROGRAM})
-    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+  set(CMAKE_C_COMPILER_LAUNCHER   ${CCACHE_PROGRAM})
+  set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
 endif()
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
@@ -32,6 +31,5 @@ target_link_libraries(focuser PRIVATE
   ${OpenCV_LIBS}
   ${CFITSIO_LIBRARIES}
   PkgConfig::INDI
-  fmt::fmt
   nlohmann_json::nlohmann_json
 )

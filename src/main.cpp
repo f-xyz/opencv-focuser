@@ -1,8 +1,12 @@
 #include <abstractbaseclient.h>
 #include <algorithm>
+#include <basedevice.h>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
+#include <functional>
 #include <indiapi.h>
+#include <indibase.h>
 #include <indibasetypes.h>
 #include <iostream>
 #include <opencv2/core/cvstd.hpp>
@@ -13,6 +17,7 @@
 #include <libindi/baseclient.h>
 #include <libindi/indiproperty.h>
 #include <libindi/defaultdevice.h>
+#include <utility>
 #include "FitsReader/FitsReader.h"
 #include "SharpnessEstimator/SharpnessEstimator.h"
 #include "utils/utils.h"
@@ -50,24 +55,32 @@ int main(const int nArgs, const char **args) {
 
   class INDIClient : public INDI::BaseClient {
     public:
+      std::function<void()> onReady;
       std::vector<Camera> cameras;
+      Throttle trottle;
 
-      Camera getBiggestCamera() {
-        return cameras[0];
-      };
+      INDIClient(std::function<void()> callback) :
+        onReady(std::move(callback)),
+        trottle(1000, onReady) {}
 
     protected:
       void newDevice(INDI::BaseDevice device) override {
-        // std::println("* Device: {}", device.getDeviceName());
+        auto name = device.getDeviceName();
+        if (std::string(name).contains("CCD")) {
+          cameras.push_back(Camera {name});
+          std::println("* Camera: {}", name);
+        } else {
+          std::println("* Device: {}", name);
+        }
       }
 
       void newProperty(INDI::Property property) override {
         auto deviceName = property.getDeviceName();
-        bool isConnection = strcmp(property.getName(), "CONNECTION") == 0;
-        bool isCCDInfo = strcmp(property.getName(), "CCD_INFO") == 0;
+        bool isConnectionProperty = strcmp(property.getName(), "CONNECTION") == 0;
+        bool isCCDInfoProperty = strcmp(property.getName(), "CCD_INFO") == 0;
         bool isNumberProp = property.getType() == INDI_NUMBER;
 
-        if (isConnection) {
+        if (isConnectionProperty) {
           auto connection = property.getSwitch();
 
           if (connection->sp[0].s == ISS_OFF) {
@@ -77,39 +90,56 @@ int main(const int nArgs, const char **args) {
           }
         }
 
-        if (isCCDInfo && isNumberProp) {
-          auto numberView = property.getNumber();
+        if (isCCDInfoProperty && isNumberProp) {
+          auto number = property.getNumber();
 
           int width = 0;
           int height = 0;
 
-          for (int i = 0; i < numberView->count(); ++i) {
-            if (strcmp(numberView->np[i].name, "CCD_MAX_X") == 0) {
-              width = numberView->np[i].value;
-            } else if (strcmp(numberView->np[i].name, "CCD_MAX_Y") == 0) {
-              height = numberView->np[i].value;
+          for (int i = 0; i < number->count(); ++i) {
+            if (strcmp(number->np[i].name, "CCD_MAX_X") == 0) {
+              width = number->np[i].value;
+            } else if (strcmp(number->np[i].name, "CCD_MAX_Y") == 0) {
+              height = number->np[i].value;
             }
           }
 
-          cameras.push_back(Camera {
-            deviceName,
-            width,
-            height
+          auto &camera = *std::ranges::find_if(cameras, [&deviceName](const Camera &x) {
+            return x.name == deviceName;
           });
 
-          std::ranges::sort(cameras, compare);
-          std::println("* {}: {}x{}", deviceName, width, height);
+          camera.width = width;
+          camera.height = height;
+
+          std::println("* Property: {} / CCD_INFO / {}x{}",
+            camera.name, camera.width, camera.height);
+
+          auto isInitialized = std::ranges::all_of(cameras, [](const Camera &x) {
+            return x.width > 0 && x.height > 0;
+          });
+
+          if (isInitialized) {
+            std::ranges::sort(cameras, compareCameraResolution);
+            trottle.call();
+          }
         }
       }
 
-      static bool compare(const Camera &a, const Camera &b) {
+      static int compareCameraResolution(const Camera &a, const Camera &b) {
         return a.width * a.height > b.width * b.height;
       }
   };
 
   //////////////////////////////////////
 
-  INDIClient indi;
+  INDIClient indi([&indi]() {
+    std::println("----------------------");
+    std::println("Cameras:");
+    for (auto &x : indi.cameras) {
+      std::println("  * {}: {}x{}", x.name, x.width, x.height);
+    }
+  });
+
   indi.setServer("localhost", 7624);
   if (!indi.connectServer()) {
     std::println("Connection to INDI server failed.");
