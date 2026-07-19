@@ -1,4 +1,5 @@
 #include <fitsio.h>
+#include <longnam.h>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/imgproc.hpp>
 #include <print>
@@ -8,7 +9,24 @@
 
 cv::Mat FitsReader::read(const std::string &file) {
   const auto fptr = openFile(file);
-  if (!fptr) {
+
+  if (!findFirstImageHdu(fptr)) {
+    return {};
+  }
+
+  const auto params = getImageParams(fptr);
+  const auto image = readImage(fptr, params);
+  closeFile(fptr);
+  
+  auto result = demosaic(image, params.bayer);
+  return result;
+}
+
+cv::Mat FitsReader::read(void *data, size_t size) {
+  fitsfile *fptr = nullptr;
+  int status = 0;
+
+  if (fits_open_memfile(&fptr, "", READONLY, &data, &size, 0, nullptr, &status)) {
     return {};
   }
 

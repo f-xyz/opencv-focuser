@@ -30,4 +30,5 @@ private:
 public:
   explicit FitsReader() = default;
   cv::Mat read(const std::string& file);
+  cv::Mat read(void *data, size_t size);
 };
