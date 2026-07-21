@@ -105,7 +105,6 @@ ImageParams FitsReader::getImageParams(fitsfile *fptr) {
   // Bayer array pattern
   fits_read_key(fptr, TSTRING, "BAYERPAT", &result.bayer, nullptr, &status);
   if (status != 0) {
-    // Missing BAYERPAT is normal for monochrome images; reset status and continue.
     status = 0;
     result.bayer[0] = '\0';
   }

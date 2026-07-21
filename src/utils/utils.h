@@ -4,22 +4,22 @@
 #include <filesystem>
 #include <functional>
 #include <future>
-#include <mutex>
 #include <print>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
+#include <opencv2/imgcodecs.hpp>
+#include "../fits/FitsReader.h"
 
 namespace fs = std::filesystem;
 
-inline std::string joinArgs(int nArgs, const char **args) {
-  std::string result = "";
+inline std::string joinArgs(const int nArgs, const char **args) {
+  std::string result;
 
   for (int i = 1; i < nArgs; ++i) {
     result += args[i];
     if (i < nArgs - 1) {
-      result += " ";
+      result += ' ';
     }
   }
 
@@ -40,9 +40,21 @@ inline std::vector<std::string> readDir(const fs::path &dir) {
     }
   }
 
-  std::sort(result.begin(), result.end());
+  std::ranges::sort(result);
 
   return result;
+}
+
+inline cv::Mat readFile(const std::string &file) {
+  const auto ext = fs::path(file).extension().string();
+
+  if (ext == ".fit" || ext == ".fits") {
+    FitsReader fits;
+    cv::Mat image = fits.read(file);
+    return image;
+  }
+
+  return cv::imread(file);
 }
 
 ////////////////////////////////////////
@@ -50,7 +62,7 @@ inline std::vector<std::string> readDir(const fs::path &dir) {
 ////////////////////////////////////////
 
 template <typename T>
-inline void print(const T &x) {
+void print(const T &x) {
   std::println("{}", x);
 }
 
@@ -64,16 +76,14 @@ public:
 
 inline void setTimeout(const std::function<void()>& callback, int delayMs) {
   std::thread([delayMs, callback]() {
-    auto ms = std::chrono::milliseconds(delayMs);
+    const auto ms = std::chrono::milliseconds(delayMs);
     std::this_thread::sleep_for(ms);
     callback();
   }).detach();
 }
 
-////////////////////////////////////////
-
 template <typename T>
-static void fulfillPromise(std::unique_ptr<std::promise<T>> &promise, T value) {
+void fulfillPromise(std::unique_ptr<std::promise<T>> &promise, T value) {
   if (promise) {
     try {
       promise->set_value(value);
@@ -83,36 +93,3 @@ static void fulfillPromise(std::unique_ptr<std::promise<T>> &promise, T value) {
     promise.reset();
   }
 }
-
-////////////////////////////////////////
-
-class Throttle {
-private:
-  int delayMs;
-  bool isWaiting = false;
-  std::function<void()> callback;
-  std::mutex mutex;
-
-public:
-  explicit Throttle(const int delayMs, std::function<void()> callback)
-    : delayMs(delayMs), callback(std::move(callback)) {}
-
-  void call() {
-    if (isWaiting) {
-      return;
-    }
-
-    isWaiting = true;
-
-    std::thread([this]() {
-      std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
-
-      {
-        std::lock_guard<std::mutex> lock(mutex);
-        isWaiting = false;
-      }
-
-      callback();
-    }).detach();
-  }
-};

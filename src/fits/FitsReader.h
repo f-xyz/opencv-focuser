@@ -17,7 +17,6 @@ struct ImageParams {
 };
 
 class FitsReader {
-private:
   fitsfile* openFile(const std::string &file);
   bool findFirstImageHdu(fitsfile *fptr);
   ImageParams getImageParams(fitsfile *fptr);
