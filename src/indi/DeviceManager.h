@@ -28,7 +28,7 @@ public:
   std::vector<Camera> &getCameras();
   std::vector<Focuser> &getFocusers();
 
-  void updateCameraResolution(const INDI::Property &property);
+  std::tuple<int, int> updateCameraResolution(const INDI::Property &property);
   bool isReady() const;
 
 private:

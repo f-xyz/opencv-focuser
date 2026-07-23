@@ -15,20 +15,21 @@ using namespace std::literals::chrono_literals;
 // Public //////////////////////////////
 ////////////////////////////////////////
 
-INDIClient::INDIClient() {}
-
 INDIClient::~INDIClient() {
   disconnectServer(0);
-  std::println("Disconnected");
+  std::println("\nDisconnected");
 }
 
-std::future<bool> INDIClient::connect(const std::string host, const unsigned int port) {
+std::future<bool> INDIClient::connect(const std::string &host, const unsigned int port) {
   connectPromise.emplace();
   auto future = connectPromise->get_future();
 
-  throttle.emplace(1000ms, [this]() {
-    connectPromise->set_value(true);
-    connectPromise.reset();
+  throttle.emplace(1s, [this]() {
+    bool isReady = deviceManager.isReady();
+    if (isReady) {
+      connectPromise->set_value(true);
+      connectPromise.reset();
+    }
   });
 
   setServer(host.c_str(), port);
@@ -62,7 +63,7 @@ std::future<cv::Mat> INDIClient::shoot(double seconds) {
   return future;
 }
 
-std::future<bool> INDIClient::move(const bool isOutwards, const int steps) {
+std::future<bool> INDIClient::move(const bool isOutward, const int steps) {
   focusPromise.emplace();
   auto future = focusPromise->get_future();
 
@@ -85,14 +86,14 @@ std::future<bool> INDIClient::move(const bool isOutwards, const int steps) {
   const auto directionSwitch = direction.getSwitch();
   directionSwitch->reset();
 
-  const auto targetSwitch = isOutwards
+  const auto targetSwitch = isOutward
     ? directionSwitch->findWidgetByName("FOCUS_OUTWARD")
     : directionSwitch->findWidgetByName("FOCUS_INWARD");
 
   if (targetSwitch) {
     targetSwitch->setState(ISS_ON);
   } else {
-    directionSwitch->at(isOutwards ? 1 : 0)->setState(ISS_ON);
+    directionSwitch->at(isOutward ? 1 : 0)->setState(ISS_ON);
   }
 
   sendNewSwitch(directionSwitch);
@@ -120,16 +121,15 @@ std::future<bool> INDIClient::move(const bool isOutwards, const int steps) {
 
 void INDIClient::newDevice(const INDI::BaseDevice device) {
   const std::string_view deviceName = device.getDeviceName();
-  
+
   if (deviceName.contains("CCD")) {
     std::println("* New camera: {}", deviceName);
     deviceManager.addCamera({deviceName.data()});
   } else if (deviceName.contains("Focuser")) {
     std::println("* New focuser: {}", deviceName);
     deviceManager.addFocuser({deviceName.data()});
-    if (deviceManager.isReady()) {
-      throttle->call();
-    }
+    std::println("  * Calling the Throttle!");
+    throttle->call();
   }
 }
 
@@ -150,9 +150,9 @@ void INDIClient::updateProperty(const INDI::Property property) {
 }
 
 void INDIClient::newMessage(INDI::BaseDevice device, int messageId) {
-  auto deviceName = device.getDeviceName();
-  auto message = device.messageQueue(messageId);
-  std::println("* New message: {} / {}", deviceName, message);
+  // auto deviceName = device.getDeviceName();
+  // auto message = device.messageQueue(messageId);
+  // std::println("* New message: {} / {}", deviceName, message);
 }
 
 ////////////////////////////////////////
@@ -161,8 +161,7 @@ void INDIClient::newMessage(INDI::BaseDevice device, int messageId) {
 
 void INDIClient::onConnection(const INDI::Property &property) {
   const std::string_view deviceName = property.getDeviceName();
-  const std::string_view propertyName = property.getName();
-  std::println("  * New property: {} / {}", deviceName, propertyName);
+  std::println("  * CONNECTION: {}", deviceName);
 
   if (deviceName.contains("CCD")) {
     setBLOBMode(B_ALSO, deviceName.data(), nullptr);
@@ -177,14 +176,35 @@ void INDIClient::onConnection(const INDI::Property &property) {
 
 void INDIClient::onCameraInfo(const INDI::Property &property) {
   const std::string_view deviceName = property.getDeviceName();
-  const std::string_view propertyName = property.getName();
-  std::println("  * New property: {} / {}", deviceName, propertyName);
+  std::println("  * CCD_INFO: {}", deviceName);
 
-  deviceManager.updateCameraResolution(property);
-
-  if (deviceManager.isReady()) {
+  auto [width, height] = deviceManager.updateCameraResolution(property);
+  if (width * height > 0) {
+    std::println("    + Camera resolution: {}x{}", width, height);
+    std::println("    * Calling the Throttle!");
     throttle->call();
+  } else {
+    std::println("    * Error, re-connecting camera: {}", deviceName);
+    reconnectDevice(deviceName);
   }
+}
+
+bool INDIClient::reconnectDevice(const std::string_view &deviceName) {
+  auto camera = getDevice(deviceName.data());
+
+  auto connection = camera.getSwitch("CONNECTION");
+  if (connection.isValid()) {
+    // 1. Disconnect
+    connection.getSwitch()->reset();
+    connection.getSwitch()->at(1)->setState(ISS_ON); // CONNECT_DISCONNECT
+    sendNewSwitch(connection);
+    // 2. Re-connect to trigger newProperty
+    connection.getSwitch()->reset();
+    connection.getSwitch()->at(0)->setState(ISS_ON); // CONNECT_CONNECT
+    sendNewSwitch(connection);
+  }
+
+  return true;
 }
 
 void INDIClient::onCameraImage(const INDI::Property &property) {
@@ -218,7 +238,7 @@ void INDIClient::onCameraImage(const INDI::Property &property) {
 
 void INDIClient::onFocuserMotion(const INDI::Property &property) {
   std::println("  * Focuser movement:");
-  
+
   const auto position = property.getNumber();
   switch (position->getState()) {
     case IPS_IDLE:
@@ -230,13 +250,15 @@ void INDIClient::onFocuserMotion(const INDI::Property &property) {
       break;
 
     case IPS_OK: // Reached position successfully
-      std::println("    + Focuser motion complete!");
+      std::println("    + Focuser motion complete: {}",
+        position->at(0)->getValue());
+
       if (focusPromise) {
         focusPromise->set_value(true);
         focusPromise.reset();
       }
       break;
-      
+
     case IPS_ALERT: // Error during motion
       std::println(stderr, "    * Focuser motion failed!");
       if (focusPromise) {

@@ -1,6 +1,5 @@
 #include "DeviceManager.h"
 #include <indiproperty.h>
-#include <print>
 #include <tuple>
 #include <algorithm>
 
@@ -10,16 +9,13 @@ void DeviceManager::addFocuser(const Focuser &focuser) { focusers.push_back(focu
 std::vector<Camera> &DeviceManager::getCameras() { return cameras; };
 std::vector<Focuser> &DeviceManager::getFocusers() { return focusers; };
 
-void DeviceManager::updateCameraResolution(const INDI::Property &property) {
-  const std::string_view deviceName = property.getDeviceName();
-  const std::string_view propertyName = property.getName();
-  std::println("  * New property: {} / {}", deviceName, propertyName);
-
-  auto &camera = findCameraByName(deviceName);
+std::tuple<int, int> DeviceManager::updateCameraResolution(const INDI::Property &property) {
+  auto &camera = findCameraByName(property.getDeviceName());
   std::tie(camera.width, camera.height) = getCameraResolution(property);
-  std::println("    + Camera resolution: {}x{}", camera.width, camera.height);
 
   std::ranges::sort(cameras, compareCameraResolutions);
+
+  return {camera.width, camera.height};
 }
 
 bool DeviceManager::isReady() const {

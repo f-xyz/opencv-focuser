@@ -1,15 +1,18 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <functional>
 #include <future>
+#include <iterator>
 #include <print>
 #include <string>
 #include <thread>
 #include <vector>
 #include <opencv2/imgcodecs.hpp>
 #include "../fits/FitsReader.h"
+#include "colors.h"
 
 namespace fs = std::filesystem;
 
@@ -71,6 +74,10 @@ class ElementPrinter {
 public:
   void operator()(const T &x) const { std::println("{}", x); }
 };
+
+inline void flame(const std::random_access_iterator_tag &values) {
+  auto colored = rgb("", 0, 0, 0);
+}
 
 ////////////////////////////////////////
 
