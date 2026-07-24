@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../logging/Logger.h"
 #include "../utils/Throttle.h"
 #include "DeviceManager.h"
 #include <baseclient.h>
@@ -11,24 +12,26 @@
 #include <string_view>
 
 class INDIClient final : private INDI::BaseClient {
+  Logger &logger;
   DeviceManager deviceManager;
   std::optional<Throttle> throttle;
   std::optional<std::promise<bool>> connectPromise;
   std::optional<std::promise<cv::Mat>> imagePromise;
-  std::optional<std::promise<bool>> focusPromise;
+  std::optional<std::promise<int>> focusPromise;
 
 public:
+  INDIClient(Logger &logger) : logger(logger) {}
   virtual ~INDIClient() override;
 
   std::future<bool> connect(const std::string &host, const unsigned int port);
   std::future<cv::Mat> shoot(double seconds);
-  std::future<bool> move(bool isOutward, int steps);
+  std::future<int> focus(bool isOutward, int steps);
 
   auto getCameras() { return deviceManager.getCameras(); }
   auto getFocusers() { return deviceManager.getFocusers(); }
 
 private:
-  bool reconnectDevice(const std::string_view &deviceName);
+  void reconnectDevice(const std::string_view &deviceName);
 
   void newDevice(INDI::BaseDevice device) override;
   void newProperty(INDI::Property property) override;

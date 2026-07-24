@@ -47,7 +47,7 @@ fitsfile *FitsReader::openFile(const std::string &file) {
   int status = 0;
 
   if (fits_open_file(&fptr, file.c_str(), READONLY, &status)) {
-    std::println("Error opening file {}, status {}", file, status);
+    std::println("Error opening file {}, status {}.", file, status);
     return nullptr;
   }
 
@@ -78,7 +78,7 @@ bool FitsReader::findFirstImageHdu(fitsfile *fptr) {
     ++nHdu;
   }
 
-  std::println(stderr, "Error: no 2D image HDU found.");
+  std::println("No 2D image HDU found.");
   closeFile(fptr);
 
   return false;
@@ -91,14 +91,14 @@ ImageParams FitsReader::getImageParams(fitsfile *fptr) {
   // Dimensions
   fits_get_img_param(fptr, 2, nullptr, &result.nDimensions, result.dimensions, &status);
   if (status != 0) {
-    std::println(stderr, "fits_get_img_param failed {}", status);
+    std::println("fits_get_img_param failed {}.", status);
     return {};
   }
 
   // Bits per pixel
   fits_get_img_equivtype(fptr, &result.bitsPerPixel, &status);
   if (status != 0) {
-    std::println(stderr, "fits_get_img_equivtype failed {}", status);
+    std::println("fits_get_img_equivtype failed {}.", status);
     return {};
   }
 
@@ -149,10 +149,9 @@ cv::Mat FitsReader::demosaic(const cv::Mat &image, const char *bayer) {
       cv::Mat bgr;
       cv::cvtColor(image, bgr, bayerCode);
       return bgr;
+    } else {
+      std::println("Unsupported BAYERPAT {}, returning raw image.", bayer);
     }
-
-    std::println("Warning: unsupported BAYERPAT {}, returning raw image",
-      bayer);
   }
 
   return image;
