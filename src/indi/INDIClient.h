@@ -6,12 +6,11 @@
 #include <baseclient.h>
 #include <basedevice.h>
 #include <future>
-#include <libindi/indiproperty.h>
 #include <opencv2/core/mat.hpp>
 #include <string>
 #include <string_view>
 
-class INDIClient final : private INDI::BaseClient {
+class INDIClient final : INDI::BaseClient {
   Logger &logger;
   DeviceManager deviceManager;
   std::optional<Throttle> throttle;
@@ -20,8 +19,8 @@ class INDIClient final : private INDI::BaseClient {
   std::optional<std::promise<int>> focusPromise;
 
 public:
-  INDIClient(Logger &logger) : logger(logger) {}
-  virtual ~INDIClient() override;
+  explicit INDIClient(Logger &logger) : logger(logger) {}
+  ~INDIClient() override;
 
   std::future<bool> connect(const std::string &host, const unsigned int port);
   std::future<cv::Mat> shoot(double seconds);

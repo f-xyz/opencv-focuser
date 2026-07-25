@@ -4,7 +4,10 @@
 #include <filesystem>
 #include <functional>
 #include <future>
-#include <ranges>
+#include <stacktrace>
+#include <csignal>
+#include <stacktrace>
+#include <cstdlib>
 #include <print>
 #include <string>
 #include <string_view>
@@ -12,6 +15,7 @@
 #include <vector>
 #include <opencv2/imgcodecs.hpp>
 #include "../fits/FitsReader.h"
+#include "colors.h"
 
 namespace fs = std::filesystem;
 
@@ -96,39 +100,42 @@ public:
   void operator()(const T &x) const { std::println("{}", x); }
 };
 
+inline void onSegfault(int signal) {
+  std::println("Segmentation fault: signal {}", signal);
+  std::println("{}", std::stacktrace::current());
+  std::exit(signal);
+}
+
 template <typename T>
-void spark(const std::vector<T> &seq) {
-  std::vector<char32_t> ticks = {
-    U'▁',
-    U'▂',
-    U'▃',
-    U'▄',
-    U'▅',
-    U'▆',
-    U'▇',
-    U'█'
+inline void printSpark(const std::vector<T> &seq) {
+  std::vector<std::string> chars = {
+    "▁",
+    "▂",
+    "▃",
+    "▄",
+    "▅",
+    "▆",
+    "▇",
+    "█"
   };
 
-  const auto n = ticks.size();
-
-  // Normalize the sequence
-  const auto sum = 
-  std::ranges::fold_left(seq, 0.0, [](auto acc, const auto& item) {
-    return acc + static_cast<double>(item);
-  });
-
-  const auto min = std::ranges::min(seq);
-  std::println("sum: {}", sum);
-  std::println("min: {}", min);
-
-  auto normalized = seq | std::views::transform([sum](auto x) {
-    return static_cast<double>(x) / sum;
-  });
-
-  for (const auto x : seq) {
-    auto bin = floor((static_cast<double>(x) - min) / n);
-    std::println("{} / bin #{}", x, 0);
+  if (seq.empty()) {
+    std::println("[]");
+    return;
   }
+
+  const auto range = std::ranges::minmax(seq);
+  const auto nBins = chars.size();
+
+  std::print("[");
+  for (const auto &value : seq) {
+    const auto x = static_cast<double>(value);
+    const auto rescaled = (x - range.min) / (range.max - range.min);
+    const auto bin = std::floor(rescaled * (nBins - 1));
+    std::print("{}", rgb(chars[bin], 255, 0, 0));
+  }
+
+  std::println("]");
 }
 
 ////////////////////////////////////////

@@ -1,18 +1,15 @@
 #include "./INDIClient.h"
 #include "../fits/FitsReader.h"
-#include <cmath>
-#include <cstring>
 #include <future>
 #include <indiapi.h>
 #include <opencv2/core/mat.hpp>
-#include <opencv2/imgcodecs.hpp>
 #include <string>
 #include <string_view>
 
 using namespace std::literals::chrono_literals;
 
 template <typename T>
-std::future<T> getFuture(std::optional<std::promise<T>> &promise) {
+static std::future<T> getFuture(std::optional<std::promise<T>> &promise) {
   promise.emplace();
   return std::move(promise->get_future());
 }
@@ -20,7 +17,7 @@ std::future<T> getFuture(std::optional<std::promise<T>> &promise) {
 ////////////////////////////////////////
 
 INDIClient::~INDIClient() {
-  disconnectServer(0);
+  BaseClient::disconnectServer(0);
 }
 
 std::future<bool> INDIClient::connect(const std::string &host, const unsigned int port) {
@@ -29,8 +26,7 @@ std::future<bool> INDIClient::connect(const std::string &host, const unsigned in
   auto future = getFuture(connectPromise);
 
   throttle.emplace(1s, [this]() {
-    bool isReady = deviceManager.isReady();
-    if (isReady) {
+    if (deviceManager.isReady()) {
       connectPromise->set_value(true);
       connectPromise.reset();
     }
@@ -120,10 +116,10 @@ void INDIClient::newProperty(const INDI::Property property) {
   const std::string_view propertyName(property.getName());
 
   if (property.isNameMatch("CONNECTION")) {
-    logger.debug("Updated property: {} / {}", deviceName, propertyName);
+    logger.debug("New property: {} / {}", deviceName, propertyName);
     onConnection(property);
   } else if (property.isNameMatch("CCD_INFO")) {
-    logger.debug("Updated property: {} / {}", deviceName, propertyName);
+    logger.debug("New property: {} / {}", deviceName, propertyName);
     onCameraInfo(property);
   }
 }
@@ -144,7 +140,7 @@ void INDIClient::updateProperty(const INDI::Property property) {
 void INDIClient::newMessage(INDI::BaseDevice device, int messageId) {
   std::string_view deviceName(device.getDeviceName());
   std::string_view message(device.messageQueue(messageId));
-  logger.debug("{}: {}", deviceName, message);
+  logger.debug("Message: {}: {}", deviceName, message);
 }
 
 ////////////////////////////////////////

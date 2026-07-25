@@ -47,11 +47,11 @@ public:
   }
 
 protected:
-  void printLine(const std::string_view &line) { 
+  static void printLine(const std::string_view &line) {
     std::println("{}", line); 
   }
 
-  void printLine(const std::string_view &line, uint r, uint g, uint b) {
+  static void printLine(const std::string_view &line, uint r, uint g, uint b) {
     std::println("{}", rgb(line.data(), r, g, b));
   }
 
