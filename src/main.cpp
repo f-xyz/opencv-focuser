@@ -1,20 +1,22 @@
 #include "config.h"
 #include "indi/INDIClient.h"
-#include "SharpnessEstimator.h"
+#include "math/SharpnessEstimator.h"
 #include "logging/Logger.h"
 #include "utils/utils.h"
-#include <algorithm>
+#include "math/Solver.h"
 #include <cmath>
-#include <cstddef>
 #include <cstdlib>
 #include <future>
+#include <opencv2/core.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/hal/interface.h>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/core/matx.hpp>
 #include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 #include <print>
-#include <ranges>
-#include <string>
 #include <thread>
 #include <unistd.h>
-#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -28,7 +30,7 @@ class FocuserApp final {
 
 public:
   FocuserApp(Config &config, Logger &logger, INDIClient &indi)
-      : config(config), logger(logger), indi(indi) {}
+    : config(config), logger(logger), indi(indi) {}
 
   std::future<bool> connect() {
     auto future = startPromise.get_future();
@@ -67,104 +69,9 @@ public:
   }
 };
 
-class Results {
-  Logger &logger;
-  std::map<int, std::vector<double>> map;
-
-public:
-  Results(Logger &logger) : logger(logger) {}
-
-  void addPoint(int position, double sharpness) {
-    map[position].push_back(sharpness);
-  }
-
-  void report() {
-    logger.info("\nFocus / sharpness:");
-
-    int bestIndex = 0;
-    int bestPosition = 0;
-    double bestSharpness = 0;
-
-    struct FocusPoint {
-      std::size_t index = 0;
-      int position = 0;
-      double sharpness = 0;
-      std::size_t count = 0;
-    };
-
-    std::vector<FocusPoint> table;
-    for (auto &kv : map) {
-      const auto index = table.size();
-      const auto position = kv.first;
-      const auto sharpness = getAverage(kv.second);
-      const auto count = kv.second.size();
-      table.push_back({ index, position, sharpness, count });
-
-      if (sharpness > bestSharpness) {
-        bestIndex = index;
-        bestPosition = position;
-        bestSharpness = sharpness;
-      }
-    }
-
-    for (auto &[index, position, sharpness, count] : table) {
-      const auto row = std::format("#{:<2} {:<6}: {:.4f} ({})",
-        index,
-        formatPosition(position),
-        sharpness,
-        count);
-      logger.info("{}", row);
-    }
-
-    ////////////////////////////////////
-
-    const auto sharpnesses = table
-       | std::views::transform(&FocusPoint::sharpness)
-       | std::ranges::to<std::vector<double>>();
-    // printChart(sharpnesses);
-
-    ////////////////////////////////////
-
-    const auto bestPrev = table[bestIndex - 1];
-    const auto best = table[bestIndex];
-    const auto bestNext = table[bestIndex + 1];
-
-    const auto logPoint = [this](const FocusPoint &x) {
-      logger.info("#{} {:<6}: {:.4f}",
-        x.index,
-        formatPosition(x.position),
-        x.sharpness,
-        x.count);
-    };
-
-    logger.info("\nBest points:");
-    logPoint(bestPrev);
-    logPoint(best);
-    logPoint(bestNext);
-
-    // xBest = x2 + stepSize * (y1 - y3) / (2 * (y1 - 2*y2 + y3));
-  }
-
-  double getAverage(const std::vector<double> &values) {
-    return getSum(values) / values.size();
-  }
-
-  double getSum(const std::vector<double> &values) {
-    return std::ranges::fold_left( values, 0.0, [](auto res, const auto &x) {
-      return res + x;
-    });
-  }
-
-  std::string formatPosition(const int position) {
-    return position >= 0
-      ? "+" + std::to_string(std::abs(position))
-      : "-" + std::to_string(std::abs(position));
-  }
-};
-
 int main(const int nArgs, const char **args) {
   setenv("QT_QPA_PLATFORM", "xcb", 1); // Fixes QT windows on Wayland
-  std::signal(SIGSEGV, onSegfault);
+  // std::signal(SIGSEGV, onSegfault);
   std::println("{}", rgb("OpenCV Focuser v0.0.1\n", 196, 0, 255));
 
   if (nArgs < 2) {
@@ -172,41 +79,47 @@ int main(const int nArgs, const char **args) {
     return -1;
   }
 
-  printSpark<double>({});
-  printSpark<double>({0, 1, 2, 3, 4, 5, 6, 7});
-  printSpark<int>({0, 1, 2, 3, 4, 5, 6, 7});
-  return 0;
-
   //////////////////////////////////////
 
   Config config;
   Logger logger(config.logFilePath);
   INDIClient indi(logger);
-  Results results(logger);
+  Solver solver(config, logger);
   FocuserApp app(config, logger, indi);
 
   app.connect().get();
   app.reportCameras();
   app.reportFocusers();
 
-  double lastSharpness = 0;
-  int lastPosition = 0;
   bool isOutward = true;
+  int lastPosition = 0;
 
-  const int nIterations = 10;
-  for (int i = 0; i < nIterations; ++i) {
-    logger.info("Iteration #{} of {}", i + 1, nIterations);
+  for (int i = 0; i < config.nIterations; ++i) {
+    logger.info("Iteration #{} of {}", i + 1, config.nIterations);
 
     auto image = indi.shoot(config.cameraExposure).get();
-    auto sharpness = SharpnessEstimator::gaussian(image);
-    auto delta = lastSharpness ? sharpness - lastSharpness : 0;
-    lastSharpness = sharpness;
-    results.addPoint(lastPosition, sharpness);
+    auto sharpness = SharpnessEstimator::laplacian(image);
+    auto delta = solver.addPoint(lastPosition, sharpness);
+
     logger.info("Sharpness: {}", sharpness);
     logger.info("Delta: {}", delta);
 
-    if (i < nIterations - 1) {
-      if (delta < 0) {
+    if (!sharpness) {
+      logger.error("Invalid image: either all white or all black.");
+
+      const cv::Size size(640, 480);
+      cv::Mat preview;
+      cv::resize(image, preview, size);
+      cv::imshow("Exposure", preview);
+      cv::waitKey(0);
+      cv::destroyAllWindows();
+      return 1;
+    }
+
+    // Skip focusing at the last iteration
+    if (i < config.nIterations - 1) {
+      // Swap direction if needed
+      if (delta < -sharpness / 100) {
         isOutward = !isOutward;
       }
 
@@ -214,17 +127,34 @@ int main(const int nArgs, const char **args) {
       lastPosition = position;
       std::this_thread::sleep_for(1s); // Wait for the vibration to fade
       logger.info("Position: {}\n", position);
-    } else {
-      const cv::Size size(640, 480);
-      cv::Mat preview;
-      cv::resize(image, preview, size);
-      cv::imshow("Exposure", preview);
-      cv::waitKey(0);
-      cv::destroyAllWindows();
     }
   }
 
-  results.report();
+  int bestPosition = solver.findBestPosition();
+  auto delta = bestPosition - lastPosition;
+  logger.info("");
+  logger.info("Last position: {}", lastPosition);
+  logger.info("Best position: {}", bestPosition);
+  logger.info("Delta: {}", delta);
+
+  if (std::abs(delta) > config.focuserStepSize * 3) {
+    logger.error("The ideal focus position if too far.");
+    return 2;
+  }
+
+  auto position = indi.focus(delta > 0, std::abs(delta)).get();
+  std::this_thread::sleep_for(1s); // Wait for the vibration to fade
+  logger.info("Position: {}\n", position);
+
+  auto image = indi.shoot(config.cameraExposure).get();
+  auto sharpness = SharpnessEstimator::laplacian(image);
+  logger.info("Sharpness: {}", sharpness);
+
+  cv::Mat preview;
+  cv::resize(image, preview, cv::Size(640, 480));
+  cv::imshow("Exposure", preview);
+  cv::waitKey(0);
+  cv::destroyAllWindows();
 
   return 0;
 
