@@ -1,0 +1,2 @@
+CompileFlags:
+  Add: [-fno-builtin-std-forward_like]

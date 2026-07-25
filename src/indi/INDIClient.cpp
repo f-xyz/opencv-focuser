@@ -24,6 +24,8 @@ INDIClient::~INDIClient() {
 }
 
 std::future<bool> INDIClient::connect(const std::string &host, const unsigned int port) {
+  logger.info("Connecting to INDI server at {}:{}", host, port);
+
   auto future = getFuture(connectPromise);
 
   throttle.emplace(1s, [this]() {
@@ -44,7 +46,9 @@ std::future<bool> INDIClient::connect(const std::string &host, const unsigned in
   return future;
 }
 
-std::future<cv::Mat> INDIClient::shoot(double seconds) {
+std::future<cv::Mat> INDIClient::shoot(const double seconds) {
+  logger.info("Shooting {} sec", seconds);
+
   auto future = getFuture(imagePromise);
 
   const auto camera = deviceManager.getCameras().front();
@@ -58,6 +62,8 @@ std::future<cv::Mat> INDIClient::shoot(double seconds) {
 }
 
 std::future<int> INDIClient::focus(const bool isOutward, const int steps) {
+  logger.info("Focusing {} steps {}", steps, isOutward ? "OUTWARD" : "INWARD");
+
   auto future = getFuture(focusPromise);
 
   auto &focuser = deviceManager.getFocusers().front();
@@ -110,9 +116,14 @@ void INDIClient::newDevice(const INDI::BaseDevice device) {
 }
 
 void INDIClient::newProperty(const INDI::Property property) {
+  const std::string_view deviceName(property.getDeviceName());
+  const std::string_view propertyName(property.getName());
+
   if (property.isNameMatch("CONNECTION")) {
+    logger.debug("Updated property: {} / {}", deviceName, propertyName);
     onConnection(property);
   } else if (property.isNameMatch("CCD_INFO")) {
+    logger.debug("Updated property: {} / {}", deviceName, propertyName);
     onCameraInfo(property);
   }
 }
@@ -120,11 +131,12 @@ void INDIClient::newProperty(const INDI::Property property) {
 void INDIClient::updateProperty(const INDI::Property property) {
   const std::string_view deviceName(property.getDeviceName());
   const std::string_view propertyName(property.getName());
-  logger.debug("Updated property: {} / {}", deviceName, propertyName);
 
   if (property.isNameMatch("CCD1")) { // Image
+    logger.debug("Updated property: {} / {}", deviceName, propertyName);
     onCameraImage(property);
   } else if (property.isNameMatch("REL_FOCUS_POSITION")) {
+    logger.debug("Updated property: {} / {}", deviceName, propertyName);
     onFocuserMotion(property);
   }
 }
@@ -169,10 +181,6 @@ void INDIClient::onCameraInfo(const INDI::Property &property) {
 }
 
 void INDIClient::onCameraImage(const INDI::Property &property) {
-  const std::string_view deviceName(property.getDeviceName());
-  const std::string_view propertyName(property.getName());
-  logger.info("  {} / {}", deviceName, propertyName);
-
   const auto blob = property.getBLOB();
   if (blob->getState() == IPS_OK) {
     const auto item = blob->at(0);
@@ -188,17 +196,13 @@ void INDIClient::onCameraImage(const INDI::Property &property) {
       logger.error("  Unknown format: {}", format);
     }
   } else {
-    logger.error("  Image failed!");
+    logger.error("  Image failed.");
     imagePromise->set_value({});
     imagePromise.reset();
   }
 }
 
 void INDIClient::onFocuserMotion(const INDI::Property &property) {
-  const std::string_view deviceName(property.getDeviceName());
-  const std::string_view propertyName(property.getName());
-  logger.info("  {} / {}", deviceName, propertyName);
-
   const auto position = property.getNumber();
   switch (position->getState()) {
     case IPS_OK: // Reached position successfully
@@ -208,7 +212,7 @@ void INDIClient::onFocuserMotion(const INDI::Property &property) {
       break;
 
     case IPS_ALERT: // Error during motion
-      logger.error("  Failed!");
+      logger.error("  Focuser motion has failed.");
       if (focusPromise) {
         focusPromise->set_value(0);
         focusPromise.reset();
