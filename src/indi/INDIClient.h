@@ -23,7 +23,7 @@ public:
   ~INDIClient() override;
 
   std::future<bool> connect(const std::string &host, const unsigned int port);
-  std::future<cv::Mat> shoot(double seconds);
+  std::future<cv::Mat> image(double seconds);
   std::future<int> focus(bool isOutward, int steps);
 
   auto getCameras() { return deviceManager.getCameras(); }

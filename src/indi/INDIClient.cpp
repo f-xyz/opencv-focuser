@@ -42,8 +42,8 @@ std::future<bool> INDIClient::connect(const std::string &host, const unsigned in
   return future;
 }
 
-std::future<cv::Mat> INDIClient::shoot(const double seconds) {
-  logger.info("Shooting {} sec", seconds);
+std::future<cv::Mat> INDIClient::image(const double seconds) {
+  logger.info("Shooting for {} sec", seconds);
 
   auto future = getFuture(imagePromise);
 

@@ -107,11 +107,12 @@ public:
     double b = coeffs.at<double>(1);
     double c = coeffs.at<double>(2);
     
-    logger.info("> a: {}", a);
-    logger.info("> b: {}", b);
-    logger.info("> c: {}", c);
+    logger.info("Parabola coeffs.:");
+    logger.info("  a: {}", a);
+    logger.info("  b: {}", b);
+    logger.info("  c: {}", c);
 
-    if (a > 0) {
+    if (a > 0) { // It must be upside down, not like U
       logger.error("Parabola fitting failed.");
       return 0;
     }
@@ -119,7 +120,7 @@ public:
     double x = -b / (2 * a);
     double y = a * x * x + b * x + c;
     
-    logger.info("> Ideal focus position: {}", std::round(x));
+    logger.info("\nIdeal focus position: {}", std::round(x));
 
     return x;
   }
