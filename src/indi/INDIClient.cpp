@@ -10,8 +10,11 @@ using namespace std::literals::chrono_literals;
 
 template <typename T>
 static std::future<T> getFuture(std::optional<std::promise<T>> &promise) {
+  if (promise.has_value()) {
+    promise.reset();
+  }
   promise.emplace();
-  return std::move(promise->get_future());
+  return promise->get_future();
 }
 
 ////////////////////////////////////////
@@ -76,9 +79,6 @@ std::future<int> INDIClient::focus(const bool isOutward, const int steps) {
   positionNumber->at(0)->setValue(steps);
   sendNewNumber(positionNumber);
 
-  focuser.position += isOutward ? steps : -steps;
-  focusPromise->set_value(focuser.position);
-
   return future;
 }
 
@@ -114,12 +114,11 @@ void INDIClient::newDevice(const INDI::BaseDevice device) {
 void INDIClient::newProperty(const INDI::Property property) {
   const std::string_view deviceName(property.getDeviceName());
   const std::string_view propertyName(property.getName());
+  logger.debug("New property: {} / {}", deviceName, propertyName);
 
   if (property.isNameMatch("CONNECTION")) {
-    logger.debug("New property: {} / {}", deviceName, propertyName);
     onConnection(property);
   } else if (property.isNameMatch("CCD_INFO")) {
-    logger.debug("New property: {} / {}", deviceName, propertyName);
     onCameraInfo(property);
   }
 }
@@ -127,12 +126,11 @@ void INDIClient::newProperty(const INDI::Property property) {
 void INDIClient::updateProperty(const INDI::Property property) {
   const std::string_view deviceName(property.getDeviceName());
   const std::string_view propertyName(property.getName());
+  logger.debug("Updated property: {} / {}", deviceName, propertyName);
 
   if (property.isNameMatch("CCD1")) { // Image
-    logger.debug("Updated property: {} / {}", deviceName, propertyName);
     onCameraImage(property);
   } else if (property.isNameMatch("REL_FOCUS_POSITION")) {
-    logger.debug("Updated property: {} / {}", deviceName, propertyName);
     onFocuserMotion(property);
   }
 }
@@ -166,7 +164,9 @@ void INDIClient::onCameraInfo(const INDI::Property &property) {
   const std::string_view deviceName(property.getDeviceName());
   logger.info("  CCD_INFO: {}", deviceName);
 
-  auto [width, height] = deviceManager.updateCameraResolution(property);
+  auto device = getDevice(property.getDeviceName());
+  auto [width, height] = deviceManager.updateCameraResolution(device);
+
   if (width * height > 0) {
     logger.success("  Camera resolution: {}x{}", width, height);
     throttle->call();
@@ -199,10 +199,17 @@ void INDIClient::onCameraImage(const INDI::Property &property) {
 }
 
 void INDIClient::onFocuserMotion(const INDI::Property &property) {
+  const auto device = getDevice(property.getDeviceName());
+  const auto steps = deviceManager.updateFocuserPosition(device);
+
   const auto position = property.getNumber();
   switch (position->getState()) {
+    case IPS_BUSY:
+      break;
+
     case IPS_OK: // Reached position successfully
       if (focusPromise) {
+        focusPromise->set_value(steps);
         focusPromise.reset();
       }
       break;
@@ -210,13 +217,12 @@ void INDIClient::onFocuserMotion(const INDI::Property &property) {
     case IPS_ALERT: // Error during motion
       logger.error("  Focuser motion has failed.");
       if (focusPromise) {
-        focusPromise->set_value(0);
+        focusPromise->set_value(steps);
         focusPromise.reset();
       }
       break;
 
     case IPS_IDLE:
-    case IPS_BUSY:
       break;
   }
 }

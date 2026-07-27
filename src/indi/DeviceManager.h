@@ -1,5 +1,6 @@
 #pragma once
 
+#include <basedevice.h>
 #include <indiproperty.h>
 #include <string>
 #include <string_view>
@@ -28,12 +29,17 @@ public:
   std::vector<Camera> &getCameras();
   std::vector<Focuser> &getFocusers();
 
-  std::tuple<int, int> updateCameraResolution(const INDI::Property &property);
   bool isReady() const;
+
+  std::tuple<int, int> updateCameraResolution(const INDI::BaseDevice &device);
+  int updateFocuserPosition(const INDI::BaseDevice &device);
 
 private:
   Camera &findCameraByName(const std::string_view &name);
-  static std::tuple<int, int> getCameraResolution(const INDI::Property &property);
+  static std::tuple<int, int> getCameraResolution(const INDI::BaseDevice &device);
   static bool isCameraInitialized(const Camera &camera);
   static int compareCameraResolutions(const Camera &a, const Camera &b);
+
+  Focuser &findFocuserByName(const std::string_view &name);
+  static int getFocuserMotion(const INDI::BaseDevice &device);
 };

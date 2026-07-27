@@ -122,6 +122,7 @@ private:
 
   ImageResult shoot(double exposure) {
     auto image = indi.image(exposure).get();
+    auto roi = getROI(image);
     auto sharpness = estimator.getSharpness(image);
     auto delta = solver.addPoint(focusPosition, sharpness);
 
@@ -141,15 +142,23 @@ private:
     };
   }
 
+  cv::Mat getROI(const cv::Mat &image) {
+    const int w = image.cols;
+    const int h = image.rows;
+    const auto rect = cv::Rect(w / 4, h / 4, w / 2, h / 2);
+    const auto roi = image(rect);
+
+    return roi;
+  }
+
   int move(bool isOutward, unsigned int steps) {
     if (isOutward) {
-      auto steps = config.focuserStepSize;
       focusPosition = indi.focus(true, steps).get();
       logger.info("Position: {}\n", focusPosition);
     } else {
       // Move invard
-      auto steps = config.focuserStepSize + config.focuserBacklash;
-      focusPosition = indi.focus(false, steps).get();
+      auto invardSteps = steps + config.focuserBacklash;
+      focusPosition = indi.focus(false, invardSteps).get();
       // And move outward a bit
       focusPosition = indi.focus(true, config.focuserBacklash).get();
       logger.info("Position: {}\n", focusPosition);

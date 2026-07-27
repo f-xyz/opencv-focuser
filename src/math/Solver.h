@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../config.h"
 #include "../logging/Logger.h"
 #include <cmath>
 #include <functional>
@@ -9,7 +8,6 @@
 #include <string>
 
 class Solver {
-  Config &config;
   Logger &logger;
   std::map<int, std::vector<double>> map;
   double lastSharpness = 0;
@@ -22,9 +20,7 @@ class Solver {
   };
 
 public:
-  Solver(Config &config, Logger &logger) :
-    config(config),
-    logger(logger) {}
+  Solver(Logger &logger) : logger(logger) {}
 
   double addPoint(int position, double sharpness) {
     map[position].push_back(sharpness);
@@ -106,7 +102,7 @@ public:
     double a = coeffs.at<double>(0);
     double b = coeffs.at<double>(1);
     double c = coeffs.at<double>(2);
-    
+
     logger.info("Parabola coeffs.:");
     logger.info("  a: {}", a);
     logger.info("  b: {}", b);
@@ -119,12 +115,14 @@ public:
 
     double x = -b / (2 * a);
     double y = a * x * x + b * x + c;
-    
-    logger.info("\nIdeal focus position: {}", std::round(x));
 
-    return x;
+    const int bestFocusPosition = static_cast<int>(std::round(x));
+    logger.info("\nIdeal focus position: {}", bestFocusPosition);
+
+    return bestFocusPosition;
   }
 
+private:
   double getAverage(const std::vector<double> &values) {
     return getSum(values) / values.size();
   }

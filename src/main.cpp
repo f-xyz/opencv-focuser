@@ -5,6 +5,9 @@
 #include "logging/Logger.h"
 #include "utils/utils.h"
 #include "FocuserApp.h"
+#include <cstdlib>
+#include <ctime>
+#include <print>
 
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
@@ -24,8 +27,8 @@ int main(const int nArgs, const char **args) {
   Config config;
   Logger logger(config.logFilePath);
   INDIClient indi(logger);
-  SharpnessEstimatorLaplacian estimator;
-  Solver solver(config, logger);
+  SharpnessEstimatorGaussian estimator;
+  Solver solver(logger);
 
   FocuserApp app(config, logger, indi, estimator, solver);
   app.connect();

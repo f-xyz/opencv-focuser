@@ -23,7 +23,7 @@ namespace fs = std::filesystem;
 // Strings /////////////////////////////
 ////////////////////////////////////////
 
-inline constexpr std::string joinArgs(const int nArgs, const char **args) {
+inline std::string joinArgs(const int nArgs, const char **args) {
   std::string result;
 
   for (int i = 1; i < nArgs; ++i) {
@@ -36,17 +36,17 @@ inline constexpr std::string joinArgs(const int nArgs, const char **args) {
   return result;
 }
 
-inline constexpr std::string_view ltrim(std::string_view str) {
+inline std::string_view ltrim(std::string_view str) {
   const auto pos = str.find_first_not_of(" \t\r\n");
   return str.substr(std::min(pos, str.size()));
 }
 
-inline constexpr std::string_view rtrim(std::string_view str) {
+inline std::string_view rtrim(std::string_view str) {
   const auto pos = str.find_last_not_of(" \t\r\n");
   return str.substr(0, pos + 1);
 }
 
-inline constexpr std::string_view trim(std::string_view str) {
+inline std::string_view trim(std::string_view str) {
   return ltrim(rtrim(str));
 }
 
@@ -88,23 +88,6 @@ inline cv::Mat readFile(const std::string &file) {
 ////////////////////////////////////////
 // Experiments /////////////////////////
 ////////////////////////////////////////
-
-template <typename T>
-void print(const T &x) {
-  std::println("{}", x);
-}
-
-template <typename T>
-class ElementPrinter {
-public:
-  void operator()(const T &x) const { std::println("{}", x); }
-};
-
-inline void onSegfault(int signal) {
-  std::println("Segmentation fault: signal {}", signal);
-  std::println("{}", std::stacktrace::current());
-  std::exit(signal);
-}
 
 template <typename T>
 inline std::string spark(const std::vector<T> &seq) {

@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_BUILD_TYPE Debug)
 
-find_package(nlohmann_json REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(CFITSIO REQUIRED cfitsio)
@@ -31,5 +30,4 @@ target_link_libraries(focuser PRIVATE
   ${OpenCV_LIBS}
   ${CFITSIO_LIBRARIES}
   PkgConfig::INDI
-  nlohmann_json::nlohmann_json
 )

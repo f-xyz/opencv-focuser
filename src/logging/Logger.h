@@ -43,7 +43,7 @@ public:
   void success(const std::format_string<Args...> &fmt, Args &&...args) {
     auto message = std::format(fmt, std::forward<Args>(args)...);
     printLine(message, 0, 128, 0);
-    writeLine(message, "SUCCESS");
+    writeLine(message, "INFO");
   }
 
 protected:

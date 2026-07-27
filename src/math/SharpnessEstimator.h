@@ -23,7 +23,7 @@ public:
 
     return result;
   }
-  
+
   static cv::Mat getBlurredImage(const cv::Mat &image, double sigma) {
     if (sigma > 0.0) {
       cv::Mat result;
@@ -47,7 +47,7 @@ class SharpnessEstimatorGaussian final : public SharpnessEstimator {
   double sigmaLow = 10;
 
 public:
-  SharpnessEstimatorGaussian() {}
+  SharpnessEstimatorGaussian() = default;
   SharpnessEstimatorGaussian(double sigmaNarrow, double sigmaWide)
     : sigmaHigh(sigmaNarrow), sigmaLow(sigmaWide) {}
 
@@ -56,7 +56,7 @@ public:
 
     cv::Mat high = getBlurredImage(gray, sigmaHigh);
     cv::Mat low = getBlurredImage(gray, sigmaLow);
-    
+
     cv::Mat difference;
     cv::subtract(high, low, difference);
 
@@ -68,14 +68,14 @@ class SharpnessEstimatorLaplacian final : public SharpnessEstimator {
   double sigmaHigh = 0;
 
 public:
-  SharpnessEstimatorLaplacian() {}
+  SharpnessEstimatorLaplacian() = default;
   SharpnessEstimatorLaplacian(double sigma)
     : sigmaHigh(sigma) {}
 
   double getSharpness(const cv::Mat &image) const override {
     cv::Mat gray = getGrayscaleImage(image);
     cv::Mat blurred = getBlurredImage(gray, sigmaHigh);
-    
+
     cv::Mat laplacian;
     cv::Laplacian(blurred, laplacian, CV_32F);
 
