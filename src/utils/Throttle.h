@@ -13,9 +13,9 @@ class Throttle final {
 public:
   explicit Throttle(
     const std::chrono::milliseconds delay,
-    const std::function<void()> callback) :
+    const std::function<void()> &callback) :
      delay(delay),
-     callback(std::move(callback)) {}
+     callback(callback) {}
 
   void call() {
     {

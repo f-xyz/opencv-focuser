@@ -3,7 +3,6 @@
 #include <chrono>
 #include <filesystem>
 #include <functional>
-#include <cstdlib>
 #include <string>
 #include <string_view>
 #include <thread>

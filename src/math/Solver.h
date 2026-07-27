@@ -8,26 +8,27 @@
 #include <ranges>
 #include <string>
 
+struct SolverFocusPoint {
+  std::size_t index = 0;
+  int position = 0;
+  double sharpness = 0;
+  std::size_t count = 0;
+};
+
 class Solver {
   Logger &logger;
-  std::map<int, std::vector<double>> map;
+  std::map<int, std::vector<double>> measurements;
   double lastSharpness = 0;
-
-  struct FocusPoint {
-    std::size_t index = 0;
-    int position = 0;
-    double sharpness = 0;
-    std::size_t count = 0;
-  };
 
 public:
   Solver(Logger &logger) : logger(logger) {}
 
   double addPoint(int position, double sharpness) {
-    map[position].push_back(sharpness);
+    measurements[position].push_back(sharpness);
 
     const auto delta = lastSharpness ? sharpness - lastSharpness : 0;
     lastSharpness = sharpness;
+
     return delta;
   }
 
@@ -38,15 +39,15 @@ public:
     // Normalization ///////////////////
     ////////////////////////////////////
 
-    std::vector<FocusPoint> table;
-    FocusPoint best {};
+    std::vector<SolverFocusPoint> results;
+    SolverFocusPoint best {};
 
-    for (auto &kv : map) {
-      const auto index = table.size();
+    for (auto &kv : measurements) {
+      const auto index = results.size();
       const auto position = kv.first;
       const auto sharpness = getAverage(kv.second);
       const auto count = kv.second.size();
-      table.push_back({ index, position, sharpness, count });
+      results.push_back({ index, position, sharpness, count });
 
       if (sharpness > best.sharpness) {
         best.index = index;
@@ -59,12 +60,13 @@ public:
     // Print report ////////////////////
     ////////////////////////////////////
 
-    for (auto &x : table) {
+    for (auto &x : results) {
       const auto row = std::format("#{:<2} {:<6}: {:.4f} ({})",
         x.index,
         formatPosition(x.position),
         x.sharpness,
         x.count);
+
       logger.info("{}", x.index == best.index
         ? rgb(row, 255, 192, 0)
         : row);
@@ -74,8 +76,8 @@ public:
     // Spark! //////////////////////////
     ////////////////////////////////////
 
-    const auto sharpnesses = table
-       | std::views::transform(&FocusPoint::sharpness)
+    const auto sharpnesses = results
+       | std::views::transform(&SolverFocusPoint::sharpness)
        | std::ranges::to<std::vector<double>>();
     logger.info("\n{}\n", spark(sharpnesses));
 
@@ -83,13 +85,13 @@ public:
     // Parabola curve fitting //////////
     ////////////////////////////////////
 
-    int n = static_cast<int>(table.size());
+    int n = static_cast<int>(results.size());
     cv::Mat X(n, 3, CV_64F);
     cv::Mat Y(n, 1, CV_64F);
 
     for (int i = 0; i < n; ++i) {
-      double x = table[i].position;
-      double y = table[i].sharpness;
+      double x = results[i].position;
+      double y = results[i].sharpness;
 
       X.at<double>(i, 0) = x * x;
       X.at<double>(i, 1) = x;

@@ -23,7 +23,7 @@ INDIClient::~INDIClient() {
   BaseClient::disconnectServer(0);
 }
 
-std::future<bool> INDIClient::connect(const std::string &host, const unsigned int port) {
+std::future<bool> INDIClient::connect(const std::string &host, unsigned int port) {
   logger.info("Connecting to INDI server at {}:{}", host, port);
 
   auto future = getFuture(connectPromise);
@@ -37,7 +37,7 @@ std::future<bool> INDIClient::connect(const std::string &host, const unsigned in
 
   setServer(host.c_str(), port);
   if (!connectServer()) {
-    logger.error("Error connection to INDI server.");
+    logger.error("Connection to INDI server failed.");
     connectPromise->set_value(false);
     connectPromise.reset();
   }
@@ -60,7 +60,7 @@ std::future<cv::Mat> INDIClient::image(const double seconds) {
   return future;
 }
 
-std::future<int> INDIClient::focus(const bool isOutward, const int steps) {
+std::future<int> INDIClient::focus(const bool isOutward, const unsigned int steps) {
   logger.info("Focusing {} steps {}", steps, isOutward ? "OUTWARD" : "INWARD");
 
   auto future = getFuture(focusPromise);

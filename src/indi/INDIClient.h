@@ -22,9 +22,9 @@ public:
   explicit INDIClient(Logger &logger) : logger(logger) {}
   ~INDIClient() override;
 
-  std::future<bool> connect(const std::string &host, const unsigned int port);
+  std::future<bool> connect(const std::string &host, unsigned int port);
   std::future<cv::Mat> image(double seconds);
-  std::future<int> focus(bool isOutward, int steps);
+  std::future<int> focus(bool isOutward, unsigned int steps);
 
   auto getCameras() { return deviceManager.getCameras(); }
   auto getFocusers() { return deviceManager.getFocusers(); }

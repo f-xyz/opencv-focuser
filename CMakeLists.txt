@@ -22,6 +22,7 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 add_executable(focuser ${SOURCES})
 
 target_include_directories(focuser PRIVATE
+  lib
   ${OpenCV_INCLUDE_DIRS}
   ${CFITSIO_INCLUDE_DIRS}
 )

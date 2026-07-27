@@ -1,4 +1,4 @@
-#include "config.h"
+#include "Config.h"
 #include "indi/INDIClient.h"
 #include "math/SharpnessEstimator.h"
 #include "math/Solver.h"
@@ -22,19 +22,18 @@ void onSegfault(int signal) {
   std::raise(signal);
 }
 
-int main(const int nArgs, const char **args) {
+int main(const int argc, const char **argv) {
   setenv("QT_QPA_PLATFORM", "xcb", 1); // Fixes QT windows on Wayland
   std::signal(SIGSEGV, onSegfault);
   std::println("{}", rgb("OpenCV Focuser v0.0.1\n", 196, 0, 255));
 
-  if (nArgs < 2) {
-    std::println("Usage: ./focuser path/to/image/dir");
-    return -1;
-  }
-
   //////////////////////////////////////
 
   Config config;
+  if (!config.parse(argc, argv)) {
+    return 0;
+  }
+
   Logger logger(config.logFilePath);
   INDIClient indi(logger);
   SharpnessEstimatorGaussian estimator;
@@ -48,7 +47,7 @@ int main(const int nArgs, const char **args) {
 
   //////////////////////////////////////
 
-  const std::string dir = joinArgs(nArgs, args);
+  const std::string dir = joinArgs(argc, argv);
   const std::vector files = readDir(dir);
 
   for (auto &file : files) {

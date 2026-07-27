@@ -15,7 +15,7 @@ class Logger {
   std::ofstream file;
 
 public:
-  Logger(const std::filesystem::path &logFilePath) {
+  explicit Logger(const std::filesystem::path &logFilePath) {
     file.open(logFilePath, std::ios_base::trunc);
   }
 

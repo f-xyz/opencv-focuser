@@ -1,20 +1,14 @@
-#include "config.h"
+#pragma once
+
+#include "Config.h"
 #include "indi/INDIClient.h"
 #include "logging/Logger.h"
 #include "math/SharpnessEstimator.h"
 #include "math/Solver.h"
-#include <cmath>
-#include <cstdlib>
-#include <future>
 #include <opencv2/core.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/hal/interface.h>
 #include <opencv2/core/mat.hpp>
-#include <opencv2/core/matx.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include <unistd.h>
-#include <vector>
 
 using namespace std::chrono_literals;
 
@@ -35,13 +29,16 @@ class FocuserApp final {
   };
 
 public:
-  FocuserApp(Config &config, Logger &logger, INDIClient &indi,
-             SharpnessEstimator &estimator, Solver &solver)
-      : config(config), logger(logger), indi(indi), estimator(estimator),
-        solver(solver) {}
+  explicit FocuserApp(Config &config, Logger &logger, INDIClient &indi,
+    SharpnessEstimator &estimator, Solver &solver) :
+    config(config),
+    logger(logger),
+    indi(indi),
+    estimator(estimator),
+    solver(solver) {}
 
   bool connect() {
-    auto isConnected = indi.connect(config.indiHost, config.indiPort).get();
+    bool isConnected = indi.connect(config.indiHost, config.indiPort).get();
     if (isConnected) {
       logger.info("Ready\n");
       reportCameras();
@@ -63,7 +60,7 @@ public:
     logger.info("Best position: {}", bestPosition);
     logger.info("Delta: {}", delta);
 
-    if (std::abs(delta) > config.focuserStepSize * 3) {
+    if (std::abs(delta) > config.focuserStepSize * 5) {
       logger.error("The ideal focus position if too far.");
       return false;
     }
@@ -76,6 +73,8 @@ public:
     return true;
   }
 
+  //////////////////////////////////////
+  //////////////////////////////////////
   //////////////////////////////////////
 
 private:
@@ -110,7 +109,7 @@ private:
       // Skip focusing at the last iteration
       if (i < config.nIterations - 1) {
         // Swap direction if needed
-        if (result.delta < -result.sharpness / 100) {
+        if (result.delta < 0) {
           isFocusingOutward = !isFocusingOutward;
         }
         move(isFocusingOutward, config.focuserStepSize);
@@ -129,7 +128,7 @@ private:
     logger.info("Sharpness: {}", sharpness);
     logger.info("Delta: {}", delta);
 
-    if (!sharpness) {
+    if (sharpness == 0) {
       logger.error("Invalid image: either all white or all black.");
       preview(image);
       return {};
@@ -142,7 +141,7 @@ private:
     };
   }
 
-  cv::Mat getROI(const cv::Mat &image) {
+  static cv::Mat getROI(const cv::Mat &image) {
     const int w = image.cols;
     const int h = image.rows;
     const auto rect = cv::Rect(w / 4, h / 4, w / 2, h / 2);
@@ -151,14 +150,14 @@ private:
     return roi;
   }
 
-  int move(bool isOutward, unsigned int steps) {
+  int move(const bool isOutward, const unsigned int steps) {
     if (isOutward) {
       focusPosition = indi.focus(true, steps).get();
       logger.info("Position: {}\n", focusPosition);
     } else {
-      // Move invard
-      auto invardSteps = steps + config.focuserBacklash;
-      focusPosition = indi.focus(false, invardSteps).get();
+      // Move inward
+      const auto inwardSteps = steps + config.focuserBacklash;
+      focusPosition = indi.focus(false, inwardSteps).get();
       // And move outward a bit
       focusPosition = indi.focus(true, config.focuserBacklash).get();
       logger.info("Position: {}\n", focusPosition);
@@ -170,7 +169,7 @@ private:
     return focusPosition;
   }
 
-  void preview(const cv::Mat &image) {
+  static void preview(const cv::Mat &image) {
     cv::Mat flipped, preview;
     cv::flip(image, flipped, 1); // Flip horizontally
     cv::resize(flipped, preview, cv::Size(640, 480));
