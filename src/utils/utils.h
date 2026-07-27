@@ -44,11 +44,16 @@ inline std::string_view trim(std::string_view str) {
   return ltrim(rtrim(str));
 }
 
-inline std::string formatDouble(double x) {
-  const auto s = std::to_string(x);
-  return x > 0
-    ? std::format("{}", rgb(s, 0, 128, 0))
-    : std::format("{}", rgb(s, 128, 0, 0));
+inline std::string formatNumber(double x) {
+  const auto str = std::to_string(x);
+
+  if (x > 0) {
+    return std::format("{}", rgb(str, 0, 128, 0));
+  } else if (x < 0) {
+    return std::format("{}", rgb(str, 128, 0, 0));
+  } else {
+    return std::format("{}", str);
+  }
 }
 
 ////////////////////////////////////////

@@ -40,8 +40,10 @@ int main(const int argc, const char **argv) {
   Solver solver(logger);
 
   FocuserApp app(config, logger, indi, estimator, solver);
-  app.connect();
-  app.autoFocus();
+  
+  if (app.connect()) {
+    app.autoFocus();
+  }
 
   return 0;
 

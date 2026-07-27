@@ -6,7 +6,6 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <ios>
 #include <print>
 #include <string_view>
 #include <utility>
@@ -55,9 +54,7 @@ protected:
     std::println("{}", rgb(line.data(), r, g, b));
   }
 
-  void writeLine(const std::string_view &message,
-                 const std::string_view &severity = "INFO") {
-
+  void writeLine(const std::string_view &message, const std::string_view &severity = "INFO") {
     auto now = std::chrono::system_clock::now();
     auto time = std::format("{:%Y-%m-%d %H:%M:%S}", now);
     auto line = std::format("[{}] {} {}", time, severity, trim(message));

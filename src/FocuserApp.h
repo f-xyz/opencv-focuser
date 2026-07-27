@@ -5,6 +5,7 @@
 #include "logging/Logger.h"
 #include "math/SharpnessEstimator.h"
 #include "math/Solver.h"
+#include "utils/utils.h"
 #include <opencv2/core.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/highgui.hpp>
@@ -60,7 +61,7 @@ public:
     logger.info("Best position: {}", bestPosition);
     logger.info("Delta: {}", delta);
 
-    if (std::abs(delta) > config.focuserStepSize * 5) {
+    if (std::abs(delta) > config.focuserStepSize * config.nIterations) {
       logger.error("The ideal focus position if too far.");
       return false;
     }
@@ -109,7 +110,7 @@ private:
       // Skip focusing at the last iteration
       if (i < config.nIterations - 1) {
         // Swap direction if needed
-        if (result.delta < 0) {
+        if (result.delta < -result.sharpness / 100) {
           isFocusingOutward = !isFocusingOutward;
         }
         move(isFocusingOutward, config.focuserStepSize);
@@ -120,13 +121,23 @@ private:
   }
 
   ImageResult shoot(double exposure) {
-    auto image = indi.image(exposure).get();
-    auto roi = getROI(image);
-    auto sharpness = estimator.getSharpness(image);
+    cv::Mat image;
+    std::vector<double> sharpnesses;
+
+    for (int i = 0; i < config.cameraAverageFrames; ++i) {
+      image = indi.image(exposure).get();
+      
+      auto roi = getROI(image);
+      auto sharpness = estimator.getSharpness(image);
+      sharpnesses.push_back(sharpness);
+    }
+
+    auto sum = std::ranges::fold_left( sharpnesses, 0.0, std::plus {});
+    auto sharpness = sum / sharpnesses.size();
     auto delta = solver.addPoint(focusPosition, sharpness);
 
     logger.info("Sharpness: {}", sharpness);
-    logger.info("Delta: {}", delta);
+    logger.info("Delta: {}", formatNumber(delta));
 
     if (sharpness == 0) {
       logger.error("Invalid image: either all white or all black.");
@@ -153,14 +164,14 @@ private:
   int move(const bool isOutward, const unsigned int steps) {
     if (isOutward) {
       focusPosition = indi.focus(true, steps).get();
-      logger.info("Position: {}\n", focusPosition);
+      logger.info("Position: {}\n", formatNumber(focusPosition));
     } else {
       // Move inward
       const auto inwardSteps = steps + config.focuserBacklash;
       focusPosition = indi.focus(false, inwardSteps).get();
       // And move outward a bit
       focusPosition = indi.focus(true, config.focuserBacklash).get();
-      logger.info("Position: {}\n", focusPosition);
+      logger.info("Position: {}\n", formatNumber(focusPosition));
     }
     
     // Wait for the vibration to fade

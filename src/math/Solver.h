@@ -21,7 +21,7 @@ class Solver {
   double lastSharpness = 0;
 
 public:
-  Solver(Logger &logger) : logger(logger) {}
+  explicit Solver(Logger &logger) : logger(logger) {}
 
   double addPoint(int position, double sharpness) {
     measurements[position].push_back(sharpness);
@@ -40,19 +40,28 @@ public:
     ////////////////////////////////////
 
     std::vector<SolverFocusPoint> results;
-    SolverFocusPoint best {};
 
     for (auto &kv : measurements) {
       const auto index = results.size();
       const auto position = kv.first;
       const auto sharpness = getAverage(kv.second);
       const auto count = kv.second.size();
-      results.push_back({ index, position, sharpness, count });
 
-      if (sharpness > best.sharpness) {
-        best.index = index;
-        best.position = position;
-        best.sharpness = sharpness;
+      results.push_back({
+        index,
+        position,
+        sharpness,
+        count
+      });
+    }
+
+    SolverFocusPoint best {};
+
+    for (auto &point : results) {
+      if (point.sharpness > best.sharpness) {
+        best.index = point.index;
+        best.position = point.position;
+        best.sharpness = point.sharpness;
       }
     }
 
