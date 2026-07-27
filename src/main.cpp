@@ -12,9 +12,16 @@
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
 
+void onSegfault(int signal) {
+  std::println("Segmentation fault:");
+  std::println("{}", std::stacktrace::current());
+  std::signal(signal, SIG_DFL);
+  std::raise(signal);
+}
+
 int main(const int nArgs, const char **args) {
   setenv("QT_QPA_PLATFORM", "xcb", 1); // Fixes QT windows on Wayland
-  // std::signal(SIGSEGV, onSegfault);
+  std::signal(SIGSEGV, onSegfault);
   std::println("{}", rgb("OpenCV Focuser v0.0.1\n", 196, 0, 255));
 
   if (nArgs < 2) {

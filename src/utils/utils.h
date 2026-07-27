@@ -134,15 +134,3 @@ inline void setTimeout(const std::function<void()>& callback, int delayMs) {
     callback();
   }).detach();
 }
-
-template <typename T>
-void fulfillPromise(std::unique_ptr<std::promise<T>> &promise, T value) {
-  if (promise) {
-    try {
-      promise->set_value(value);
-    } catch (const std::future_error &) {
-      // Promise was already fulfilled elsewhere
-    }
-    promise.reset();
-  }
-}

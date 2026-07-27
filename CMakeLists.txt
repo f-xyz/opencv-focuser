@@ -30,4 +30,5 @@ target_link_libraries(focuser PRIVATE
   ${OpenCV_LIBS}
   ${CFITSIO_LIBRARIES}
   PkgConfig::INDI
+  stdc++exp
 )
