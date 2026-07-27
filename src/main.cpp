@@ -4,7 +4,10 @@
 #include "math/Solver.h"
 #include "logging/Logger.h"
 #include "utils/utils.h"
+#include "utils/colors.h"
 #include "FocuserApp.h"
+#include <stacktrace>
+#include <csignal>
 #include <cstdlib>
 #include <ctime>
 #include <print>
@@ -49,7 +52,7 @@ int main(const int nArgs, const char **args) {
   const std::vector files = readDir(dir);
 
   for (auto &file : files) {
-    const cv::Mat image = readFile(file);
+    const cv::Mat image = readImage(file);
 
     const int w = image.cols;
     const int h = image.rows;

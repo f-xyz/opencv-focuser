@@ -3,12 +3,7 @@
 #include <chrono>
 #include <filesystem>
 #include <functional>
-#include <future>
-#include <stacktrace>
-#include <csignal>
-#include <stacktrace>
 #include <cstdlib>
-#include <print>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -50,6 +45,13 @@ inline std::string_view trim(std::string_view str) {
   return ltrim(rtrim(str));
 }
 
+inline std::string formatDouble(double x) {
+  const auto s = std::to_string(x);
+  return x > 0
+    ? std::format("{}", rgb(s, 0, 128, 0))
+    : std::format("{}", rgb(s, 128, 0, 0));
+}
+
 ////////////////////////////////////////
 // Filesystem //////////////////////////
 ////////////////////////////////////////
@@ -73,7 +75,7 @@ inline std::vector<std::string> readDir(const fs::path &dir) {
   return result;
 }
 
-inline cv::Mat readFile(const std::string &file) {
+inline cv::Mat readImage(const std::string &file) {
   const auto ext = fs::path(file).extension().string();
 
   if (ext == ".fit" || ext == ".fits") {
@@ -86,45 +88,7 @@ inline cv::Mat readFile(const std::string &file) {
 }
 
 ////////////////////////////////////////
-// Experiments /////////////////////////
-////////////////////////////////////////
-
-template <typename T>
-inline std::string spark(const std::vector<T> &seq) {
-  std::vector<std::string> chars = {
-    "▁",
-    "▂",
-    "▃",
-    "▄",
-    "▅",
-    "▆",
-    "▇",
-    "█"
-  };
-
-  if (seq.empty()) {
-    return "[]";
-  }
-
-  const auto range = std::ranges::minmax(seq);
-  const auto nBins = chars.size();
-
-  std::string result = "[";
-
-  for (const auto &value : seq) {
-    const auto x = static_cast<double>(value);
-    const auto rescaled = (x - range.min) / (range.max - range.min);
-    const auto bin = std::floor(rescaled * (nBins - 1));
-
-    const auto r = 255;
-    const auto g = std::floor(255 * rescaled);
-    const auto b = std::floor(64 * rescaled);
-    result += rgb(chars[bin], r, g, b);
-  }
-
-  return result + "]";
-}
-
+// For fun /////////////////////////////
 ////////////////////////////////////////
 
 inline void setTimeout(const std::function<void()>& callback, int delayMs) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../logging/Logger.h"
+#include "../utils/spark.h"
 #include <cmath>
 #include <functional>
 #include <map>

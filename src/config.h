@@ -9,7 +9,7 @@ public:
   std::string indiHost = "localhost";
   unsigned int indiPort = 7624;
   
-  double cameraExposure = 0.01;
+  double cameraExposure = 0.02;
   unsigned int focuserStepSize = 500;
   unsigned int focuserBacklash = 100; // not used ATM
   unsigned int nIterations = 10;

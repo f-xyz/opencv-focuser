@@ -11,7 +11,7 @@ Format of ANSI Escape Codes
   - Example: a Bold Red Text on a Yellow Background: `\033[1;31;43m`. 
 
 Advanced Colors (256-Color & True Color RGB)
-  - Modern terminals allow you to leverage a larger spectrum using specific extended formatting structures.
+  - Modern terminals allow leveraging a larger spectrum using specific extended formatting structures.
   - 256 Colors: Format via `\033[38;5;[0-255]m` (Foreground) or `\033[48;5;[0-255]m` (Background).
   - True Color (RGB): Format via `\033[38;2;R;G;Bm` (where R, G, B are integers from 0 to 255).
 */
@@ -40,4 +40,12 @@ constexpr inline std::string rgb(const std::string &s, unsigned char r, unsigned
   auto blue = std::to_string(b);
   
   return "\033[38;2;" + red + ";" + green + ";" + blue + "m" + s + RESET;
+}
+
+constexpr inline std::string rgb(const std::string &s, unsigned int color) {
+  unsigned char r = (color >> 16) & 0xFF;
+  unsigned char g = (color >> 8) & 0xFF;
+  unsigned char b = (color) & 0xFF;
+
+  return rgb(s, r, g, b);
 }
