@@ -51,32 +51,76 @@ public:
   }
 
   bool autoFocus() {
-    loopAndGatherData();
+    ////////////////////////////////////
+    // Gather data points //////////////
+    ////////////////////////////////////
 
-    auto bestPosition = solver.findBestPosition();
-    auto delta = bestPosition - focusPosition;
+    for (int i = 0; i < config.nIterations; ++i) {
+      logger.info("Iteration #{} of {}", i + 1, config.nIterations);
+      auto result = shoot(config.cameraExposure);
 
-    logger.info("");
-    logger.info("Last position: {}", focusPosition);
-    logger.info("Best position: {}", bestPosition);
-    logger.info("Delta: {}", delta);
+      // Skip focusing at the last iteration
+      if (i >= config.nIterations - 1) {
+        continue;
+      }
 
-    if (std::abs(delta) > config.focuserStepSize * config.nIterations) {
-      logger.error("The ideal focus position if too far.");
-      return false;
+      // Swap direction if needed
+      if (result.delta < -1) { // Just above camera noise
+        isFocusingOutward = !isFocusingOutward;
+      }
+
+      move(isFocusingOutward, config.focuserStepSize);
     }
 
-    move(delta > 0, std::abs(delta));
-    
-    auto result = shoot(config.cameraExposure);
-    preview(result.image);
+    ////////////////////////////////////
+    // Solve ///////////////////////////
+    ////////////////////////////////////
+
+    auto solution = solver.findBestPosition();
+
+    switch (solution.type) {
+      case MoveInward:
+        logger.info(">>> {}", rgb("MoveInvard", 0xFFFFFF));
+        autoFocus();
+        break;
+      case MoveOutward:
+        logger.info(">>> {}", rgb("MoveOutward", 0xFFFFFF));
+        autoFocus();
+        break;
+      case MoveAround:
+        logger.info(">>> {}", rgb("MoveAround", 0xFFFFFF));
+        validateSolution(solution);
+        break;
+      }
 
     return true;
   }
 
-  //////////////////////////////////////
-  //////////////////////////////////////
-  //////////////////////////////////////
+  bool validateSolution(const Solution &solution) {
+    auto bestPoint = solution.point;
+    auto bestPosition = bestPoint.position;
+    auto stepsToBest = bestPosition - focusPosition;
+
+    logger.info("Last position: {}", focusPosition);
+    logger.info("Best position: {}", bestPosition);
+    logger.info("Steps to the best position: {}", formatNumber(stepsToBest));
+
+    // Prevent equipment damage...
+    if (std::abs(stepsToBest) > config.focuserStepSize * config.nIterations) {
+      logger.error("The ideal focus position if too far.");
+      return false;
+    }
+
+    auto isOutward = stepsToBest > 0;
+    auto steps = std::abs(stepsToBest);
+    move(isOutward, steps);
+
+    auto result = shoot(config.cameraExposure);
+    auto delta = result.sharpness - bestPoint.sharpness;
+    preview(result.image);
+
+    return true;
+  }
 
 private:
   void reportCameras() {
@@ -102,31 +146,13 @@ private:
     logger.info("");
   }
 
-  bool loopAndGatherData() {
-    for (int i = 0; i < config.nIterations; ++i) {
-      logger.info("Iteration #{} of {}", i + 1, config.nIterations);
-      auto result = shoot(config.cameraExposure);
-
-      // Skip focusing at the last iteration
-      if (i < config.nIterations - 1) {
-        // Swap direction if needed
-        if (result.delta < -result.sharpness / 100) {
-          isFocusingOutward = !isFocusingOutward;
-        }
-        move(isFocusingOutward, config.focuserStepSize);
-      }
-    }
-
-    return true;
-  }
-
   ImageResult shoot(double exposure) {
     cv::Mat image;
     std::vector<double> sharpnesses;
 
     for (int i = 0; i < config.cameraAverageFrames; ++i) {
       image = indi.image(exposure).get();
-      
+
       auto roi = getROI(image);
       auto sharpness = estimator.getSharpness(image);
       sharpnesses.push_back(sharpness);
@@ -136,8 +162,9 @@ private:
     auto sharpness = sum / sharpnesses.size();
     auto delta = solver.addPoint(focusPosition, sharpness);
 
-    logger.info("Sharpness: {}", sharpness);
-    logger.info("Delta: {}", formatNumber(delta));
+    logger.info("Sharpness: {}; Delta: {}",
+      formatNumber(sharpness),
+      formatNumber(delta));
 
     if (sharpness == 0) {
       logger.error("Invalid image: either all white or all black.");
@@ -173,7 +200,7 @@ private:
       focusPosition = indi.focus(true, config.focuserBacklash).get();
       logger.info("Position: {}\n", formatNumber(focusPosition));
     }
-    
+
     // Wait for the vibration to fade
     std::this_thread::sleep_for(1s);
 

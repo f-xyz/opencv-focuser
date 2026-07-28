@@ -27,7 +27,7 @@ bool Config::parse(const int argc, const char **argv) {
 
   app.add_option("-a,--average",
     cameraAverageFrames,
-    "Number of camera images to average.")
+    "Number of camera exposures to average.")
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
 

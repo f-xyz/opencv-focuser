@@ -80,25 +80,19 @@ inline std::vector<std::string> readDir(const fs::path &dir) {
 }
 
 inline cv::Mat readImage(const std::string &file) {
-  const auto ext = fs::path(file).extension().string();
-
-  if (ext == ".fit" || ext == ".fits") {
-    FitsReader fits;
-    cv::Mat image = fits.read(file);
-    return image;
-  }
-
-  return cv::imread(file);
+  auto ext = fs::path(file).extension().string();
+  return ext == ".fit" || ext == ".fits"
+    ? FitsReader().read(file)
+    : cv::imread(file);
 }
 
 ////////////////////////////////////////
-// For fun /////////////////////////////
+// Fun /////////////////////////////////
 ////////////////////////////////////////
 
-inline void setTimeout(const std::function<void()>& callback, int delayMs) {
-  std::thread([delayMs, callback]() {
-    const auto ms = std::chrono::milliseconds(delayMs);
-    std::this_thread::sleep_for(ms);
+inline void setTimeout(const std::function<void()>& callback, std::chrono::milliseconds delay) {
+  std::thread([delay, callback]() {
+    std::this_thread::sleep_for(delay);
     callback();
   }).detach();
 }
