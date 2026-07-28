@@ -19,9 +19,10 @@ Solution Solver::findBestPosition() {
   printSpark(table);
 
   auto [a, b, c] = findParabolaCoeffs(table);
+  printCoeffs({a, b, c});
 
   if (a > 0) { // It must be upside down, not like U
-    logger.error("Parabola fitting failed.");
+    logger.error("Parabola fitting failed.\n");
     return {
       resultType,
       Point {
@@ -38,6 +39,7 @@ Solution Solver::findBestPosition() {
 
   return {
     resultType,
+    best,
     Point {
       .index = 0,
       .position = x,
@@ -82,14 +84,14 @@ Point Solver::findBestPoint(const std::vector<Point> &table) {
 }
 
 SolutionType Solver::findResultType(const std::vector<Point> &table,
-                                        const Point &best) {
+                                    const Point &best) {
   SolutionType resultType;
   if (best.position == table.front().position) {
-    return SolutionType::MoveInward;
+    return SolutionType::Inward;
   } else if (best.position == table.back().position) {
-    return SolutionType::MoveOutward;
+    return SolutionType::Outward;
   } else {
-    return SolutionType::MoveAround;
+    return SolutionType::Around;
   }
 }
 
@@ -116,11 +118,6 @@ Coeffs Solver::findParabolaCoeffs(const std::vector<Point> &table) {
   auto b = coeffs.at<double>(1);
   auto c = coeffs.at<double>(2);
 
-  logger.info("Parabola coeffs.:");
-  logger.info("  a: {}", a);
-  logger.info("  b: {}", b);
-  logger.info("  c: {}", c);
-
   return {a, b, c};
 }
 
@@ -146,4 +143,13 @@ void Solver::printSpark(const std::vector<Point> &table) {
     | std::ranges::to<std::vector<double>>();
 
   logger.info("\n{}\n", spark(sharpnesses));
+}
+
+void Solver::printCoeffs(const Coeffs &coefs) {
+  auto &[a, b, c] = coefs;
+  logger.info("Parabola coeffs.:");
+  logger.info("  a: {}", a);
+  logger.info("  b: {}", b);
+  logger.info("  c: {}", c);
+  logger.info("");
 }

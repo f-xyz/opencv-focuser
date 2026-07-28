@@ -9,12 +9,6 @@
 #include <string>
 #include <vector>
 
-enum SolutionType {
-  MoveInward,
-  MoveAround,
-  MoveOutward,
-};
-
 struct Point {
   std::size_t index = 0; // Index of a measurement
   int position = 0; // Focuser position (X)
@@ -28,9 +22,16 @@ struct Coeffs {
   double c = 0; // c
 };
 
+enum SolutionType {
+  Inward,
+  Around,
+  Outward,
+};
+
 struct Solution {
   SolutionType type {};
-  Point point {};
+  Point bestPoint {};
+  Point idealPoint {};
 };
 
 class Solver {
@@ -43,9 +44,13 @@ public:
 
   double addPoint(int position, double sharpness);
   Solution findBestPosition();
+
+  void reset() {
+    measurements.clear();
+    lastSharpness = 0;
+  }
   
 private:
-
   std::vector<Point> getAveragedMeasurements();
   Point findBestPoint(const std::vector<Point> &table);
   SolutionType findResultType(const std::vector<Point> &table, const Point &best);
@@ -53,6 +58,7 @@ private:
 
   void printReport(const std::vector<Point> &table, const Point &best);
   void printSpark(const std::vector<Point> &table);
+  void printCoeffs(const Coeffs &coefs);
 
   double getAverage(const std::vector<double> &values) {
     const auto sum = std::ranges::fold_left( values, 0.0, std::plus {});
