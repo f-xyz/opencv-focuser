@@ -25,6 +25,7 @@ Advanced Colors (256-Color & True Color RGB)
 #define MAGENTA      "\033[35m"
 #define CYAN         "\033[36m"
 #define WHITE        "\033[37m"
+#define BOLD         "\033[1m"
 #define BOLD_BLACK   "\033[1m\033[30m"
 #define BOLD_RED     "\033[1m\033[31m"
 #define BOLD_GREEN   "\033[1m\033[32m"
@@ -48,4 +49,8 @@ constexpr inline std::string rgb(const std::string &s, unsigned int color) {
   unsigned char b = (color) & 0xFF;
 
   return rgb(s, r, g, b);
+}
+
+inline std::string bold(const std::string &s) {
+  return BOLD + s + RESET;
 }

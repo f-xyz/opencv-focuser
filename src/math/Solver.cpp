@@ -13,18 +13,17 @@ double Solver::addPoint(int position, double sharpness) {
 
 Solution Solver::findBestPosition() {
   auto table = getAveragedMeasurements();
-  auto best = findBestPoint(table);
-  auto resultType = findResultType(table, best);
-  printReport(table, best);
+  auto bestPoint = findBestPoint(table);
+  auto resultType = findResultType(table, bestPoint);
+  printReport(table, bestPoint);
   printSpark(table);
 
-  auto [a, b, c] = findParabolaCoeffs(table);
-  printCoeffs({a, b, c});
-
-  if (a > 0) { // It must be upside down, not like U
-    logger.error("Parabola fitting failed.\n");
+  auto n = table.size();
+  if (n < 3) {
+    logger.error("I need at least 3 data points,\nbut I have only {}.\n", n);
     return {
       resultType,
+      bestPoint,
       Point {
         .index = 0,
         .position = 0,
@@ -34,16 +33,34 @@ Solution Solver::findBestPosition() {
     };
   }
 
-  int x = static_cast<int>(std::round(-b / (2 * a))); // The best theoretical position
-  double y = a * x * x + b * x + c; // The best theoretical sharpness
+  auto [a, b, c] = findParabolaCoeffs(table);
+  printCoeffs({a, b, c});
+
+  if (a > 0) { // It must be upside down, not like U
+    logger.error("Parabola fitting failed.\n");
+    return {
+      resultType,
+      bestPoint,
+      Point {
+        .index = 0,
+        .position = 0,
+        .sharpness = 0,
+        .count = 0
+      }
+    };
+  }
+
+  // The best theoretical position and sharpness
+  int position = static_cast<int>(std::round(-b / (2 * a)));
+  double sharpness = a * position * position + b * position + c;
 
   return {
     resultType,
-    best,
+    bestPoint,
     Point {
       .index = 0,
-      .position = x,
-      .sharpness = y,
+      .position = position,
+      .sharpness = sharpness,
       .count = 1
     }
   };
@@ -70,7 +87,7 @@ std::vector<Point> Solver::getAveragedMeasurements() {
 }
 
 Point Solver::findBestPoint(const std::vector<Point> &table) {
-  Point best{};
+  Point best {};
 
   for (auto &point : table) {
     if (point.sharpness > best.sharpness) {
@@ -83,8 +100,7 @@ Point Solver::findBestPoint(const std::vector<Point> &table) {
   return best;
 }
 
-SolutionType Solver::findResultType(const std::vector<Point> &table,
-                                    const Point &best) {
+SolutionType Solver::findResultType(const std::vector<Point> &table, const Point &best) {
   SolutionType resultType;
   if (best.position == table.front().position) {
     return SolutionType::Inward;

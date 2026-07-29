@@ -19,6 +19,13 @@ public:
   }
 
   template <typename... Args>
+  void header(const std::format_string<Args...> &fmt, Args &&...args) {
+    auto message = std::format(fmt, std::forward<Args>(args)...);
+    printLine(bold(message));
+    writeLine(message, "INFO");
+  }
+
+  template <typename... Args>
   void info(const std::format_string<Args...> &fmt, Args &&...args) {
     auto message = std::format(fmt, std::forward<Args>(args)...);
     printLine(message);
@@ -59,6 +66,6 @@ protected:
     auto time = std::format("{:%Y-%m-%d %H:%M:%S}", now);
     auto line = std::format("[{}] {} {}", time, severity, trim(message));
 
-    file << line << std::endl;
+    file << line << "\n";
   }
 };

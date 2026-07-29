@@ -18,9 +18,14 @@ class FocuserApp final {
   INDIClient &indi;
   SharpnessEstimator &estimator;
   Solver &solver;
-
   int focusPosition = 0;
-  bool isFocusingOutward = true;
+
+public:
+
+  enum Type {
+    ByEar,
+    Linear
+  };
 
   struct ImageResult {
     cv::Mat image {};
@@ -28,7 +33,6 @@ class FocuserApp final {
     double delta = 0;
   };
 
-public:
   explicit FocuserApp(Config &config, Logger &logger, INDIClient &indi,
     SharpnessEstimator &estimator, Solver &solver) :
     config(config),
@@ -38,13 +42,14 @@ public:
     solver(solver) {}
 
   bool connect();
-  bool autoFocus();
+  bool autoFocus(Type type = Type::ByEar, bool startOutward = true);
 
 private:
-  bool gatherDataByHeart();
-  bool gatherDataLinearly();
   bool checkSolution(const Solution &solution);
   bool validateSolution(const Solution &solution);
+
+  bool gatherDataByEar(bool startOutward = true);
+  bool gatherDataLinearly();
 
   void reportCameras();
   void reportFocusers();
@@ -54,4 +59,15 @@ private:
 
   static cv::Mat getROI(const cv::Mat &image);
   static void preview(const cv::Mat &image);
+  static std::string typeToString(Type type) {
+    switch (type) {
+      case ByEar:
+        return "By Ear";
+        break;
+      case Linear:
+        return "Linear";
+        break;
+    }
+    return "Error";
+  }
 };

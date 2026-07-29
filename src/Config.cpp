@@ -1,4 +1,5 @@
 #include "Config.h"
+#include <print>
 
 bool Config::parse(const int argc, const char **argv) {
   CLI::App app {};
@@ -49,6 +50,7 @@ bool Config::parse(const int argc, const char **argv) {
   try {
     app.parse(argc, argv);
   } catch (const CLI::ParseError &e) {
+    std::println("{}", app.help());
     app.exit(e);
     return false;
   }

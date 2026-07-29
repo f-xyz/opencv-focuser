@@ -17,8 +17,8 @@ struct Point {
 };
 
 struct Coeffs {
-  double a = 0; // a*x^2 +
-  double b = 0; // b*x +
+  double a = 0; // a*X^2 +
+  double b = 0; // b*X +
   double c = 0; // c
 };
 
@@ -45,7 +45,7 @@ public:
   double addPoint(int position, double sharpness);
   Solution findBestPosition();
 
-  void reset() {
+  void clear() {
     measurements.clear();
     lastSharpness = 0;
   }

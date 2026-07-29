@@ -1,9 +1,12 @@
 #include "FocuserApp.h"
+#include "utils/colors.h"
+#include <exception>
 
 bool FocuserApp::connect() {
+  logger.header("Connecting...");
   bool isConnected = indi.connect(config.indiHost, config.indiPort).get();
   if (isConnected) {
-    logger.info("Ready\n");
+    logger.header("\nConnected\n");
     reportCameras();
     reportFocusers();
     return true;
@@ -12,33 +15,133 @@ bool FocuserApp::connect() {
   }
 }
 
-bool FocuserApp::autoFocus() {
-  gatherDataByHeart();
-  // gatherDataLinearly();
+////////////////////////////////////////
+// Focusing Routines ///////////////////
+////////////////////////////////////////
 
+bool FocuserApp::autoFocus(Type type, bool startOutward) {
+  logger.header("Starting auto focus...");
+  logger.info("  type: {}", typeToString(type));
+  logger.info("  startOutward: {}", startOutward);
+  logger.info("");
+
+  // Gather data points
+  switch (type) {
+    case ByEar:
+      gatherDataByEar(startOutward);
+      break;
+
+    case Linear:
+      gatherDataLinearly();
+      break;
+  }
+
+  // Find solution
+  logger.header("Solving...");
   auto solution = solver.findBestPosition();
-  solver.reset();
+  solver.clear();
 
+  // Perform next steps
   checkSolution(solution);
 
   return true;
 }
 
-bool FocuserApp::gatherDataByHeart() {
+bool FocuserApp::checkSolution(const Solution &solution) {
+  logger.header("Checking the solution...");
+
+  switch (solution.type) {
+    case Inward: {
+      logger.info("  Ideal position is: {}\n", bold("inward"));
+
+      auto delta = solution.bestPoint.position - focusPosition;
+      if (delta != 0) {
+        logger.info("Moving to be first position...");
+        move(false, std::abs(delta));
+      }
+      
+      logger.info("");
+      autoFocus(Type::ByEar, false);
+      break;
+    }
+
+    case Outward: {
+      logger.info("  Ideal position is: {}\n", bold("outward"));
+      autoFocus(Type::ByEar, true);
+      break;
+    }
+
+    case Around: {
+      logger.info("  Ideal position is: {}\n", bold("around"));
+
+      if (validateSolution(solution)) {
+        logger.header("Done!");
+      } else {
+        // Not sharp enough! Trying again with smaller steps...
+        config.focuserStepSize /= 2;
+
+        if (config.focuserStepSize > 0) {
+          autoFocus(Type::Linear, false);
+        } else {
+          logger.error("I did my best, but failed anyway...");
+        }
+      }
+      break;
+    }
+  }
+
+  return true;
+}
+
+bool FocuserApp::validateSolution(const Solution &solution) {
+  logger.header("Validating the solution...");
+
+  auto bestPoint = solution.bestPoint;
+  auto idealPoint = solution.idealPoint;
+  auto idealPosition = idealPoint.position;
+  auto stepsToIdeal = idealPosition - focusPosition;
+
+  logger.info("  Best sharpnes: {}", bestPoint.sharpness);
+  logger.info("  Ideal sharpnes: {}", idealPoint.sharpness);
+  logger.info("");
+  
+  logger.info("  Current position: {}", focusPosition);
+  logger.info("  Ideal position: {}", idealPosition);
+  logger.info("  Steps to the best position: {}", formatNumber(stepsToIdeal));
+  logger.info("");
+
+  // Prevent equipment damage...
+  if (std::abs(stepsToIdeal) > config.focuserStepSize * config.nIterations) {
+    logger.error("  The ideal focus position if too far.\n");
+    return false;
+  }
+
+  // Move to the ideal position
+  auto isOutward = stepsToIdeal > 0;
+  auto steps = std::abs(stepsToIdeal);
+  move(isOutward, steps);
+  logger.info("");
+
+  // Capture an image and compare it with the best
+  solver.addPoint(bestPoint.position, bestPoint.sharpness);
+  auto result = shoot(config.cameraExposure);
+  preview(result.image);
+  logger.info("");
+
+  return result.delta > 0; // Is not worse than the best?
+}
+
+////////////////////////////////////////
+// Data Gathering //////////////////////
+////////////////////////////////////////
+
+bool FocuserApp::gatherDataByEar(bool startOutward) {
+  bool isFocusingOutward = startOutward;
+
   for (int i = 0; i < config.nIterations; ++i) {
     logger.info("Iteration #{} of {}", i + 1, config.nIterations);
 
     auto result = shoot(config.cameraExposure);
-
-    logger.info("Sharpness: {}; Delta: {}",
-      formatNumber(result.sharpness),
-      formatNumber(result.delta));
-
-    if (result.sharpness == 0) {
-      logger.error("Invalid image: either all white or all black.");
-      preview(result.image);
-      return false;
-    }
 
     // Skip focusing at the last iteration
     if (i >= config.nIterations - 1) {
@@ -51,7 +154,7 @@ bool FocuserApp::gatherDataByHeart() {
     }
 
     move(isFocusingOutward, config.focuserStepSize);
-    logger.info("Position: {}\n", formatNumber(focusPosition));
+    logger.info("");
   }
 
   return true;
@@ -60,112 +163,21 @@ bool FocuserApp::gatherDataByHeart() {
 bool FocuserApp::gatherDataLinearly() {
   // Move 2 steps inward
   move(false, config.focuserStepSize * 2);
-  logger.info("Position: {}\n", formatNumber(focusPosition));
-
   auto result = shoot(config.cameraExposure);
-  logger.info("Sharpness: {}; Delta: {}",
-      formatNumber(result.sharpness),
-      formatNumber(result.delta));
 
   // Move 1 step outward 4 times
   for (int i = 0; i < 4; ++i) {
     logger.info("\nIteration #{} of {}", i + 1, config.nIterations);
-
-    // Move 1 step outward
     move(true, config.focuserStepSize * 2);
-    logger.info("Position: {}\n", formatNumber(focusPosition));
-
-    // Capture an image
     auto result = shoot(config.cameraExposure);
-    logger.info("Sharpness: {}; Delta: {}",
-      formatNumber(result.sharpness),
-      formatNumber(result.delta));
-
-    if (result.sharpness == 0) {
-      logger.error("Invalid image: either all white or all black.");
-      preview(result.image);
-      return false;
-    }
-  }
-
-  // Return to the initial position
-  move(false, config.focuserStepSize * 2);
-
-  return true;
-}
-
-bool FocuserApp::checkSolution(const Solution &solution) {
-  logger.info("The ideal position is:");
-  switch (solution.type) {
-    case Inward:
-      logger.info("  {}\n", rgb("Inward", 0xFFFFFF));
-      // logger.info("Press any key to continue...");
-      // std::cin.get();
-      // autoFocus();
-      break;
-
-    case Outward:
-      logger.info("  {}\n", rgb("Outward", 0xFFFFFF));
-      // logger.info("Press any key to continue...");
-      // std::cin.get();
-      // autoFocus();
-      break;
-
-    case Around:
-      logger.info("  {}\n", rgb("Around", 0xFFFFFF));
-
-      if (validateSolution(solution)) {
-        // logger.info("{}", rgb("Done!", 0xFFFFFF));
-      } else {
-        // logger.info("Press any key to continue...");
-        // std::cin.get();
-        // config.focuserStepSize /= 5;
-        // autoFocus();
-      }
-      break;
   }
 
   return true;
 }
 
-bool FocuserApp::validateSolution(const Solution &solution) {
-  auto bestPoint = solution.bestPoint;
-  auto idealPoint = solution.idealPoint;
-  auto idealPosition = idealPoint.position;
-  auto stepsToIdeal = idealPosition - focusPosition;
-
-  logger.info("Best sharpnes: {}", bestPoint.sharpness);
-  logger.info("Ideal sharpnes: {}", idealPoint.sharpness);
-  logger.info("");
-
-  logger.info("Current position: {}", focusPosition);
-  logger.info("Ideal position: {}", idealPosition);
-  logger.info("Steps to the best position: {}", formatNumber(stepsToIdeal));
-  logger.info("");
-
-  // Prevent equipment damage...
-  if (std::abs(stepsToIdeal) > config.focuserStepSize * config.nIterations) {
-    logger.error("The ideal focus position if too far.");
-    return false;
-  }
-
-  // Move to the ideal position
-  auto isOutward = stepsToIdeal > 0;
-  auto steps = std::abs(stepsToIdeal);
-  move(isOutward, steps);
-
-  // Take an image and compare it with the best
-  auto result = shoot(config.cameraExposure);
-  auto delta = result.sharpness - bestPoint.sharpness;
-
-  logger.info("Sharpness: {}; Delta: {}",
-    formatNumber(result.sharpness),
-    formatNumber(result.delta));
-
-  preview(result.image);
-
-  return delta >= 0;
-}
+////////////////////////////////////////
+// Reporting ///////////////////////////
+////////////////////////////////////////
 
 void FocuserApp::reportCameras() {
   logger.info("Cameras:");
@@ -190,6 +202,10 @@ void FocuserApp::reportFocusers() {
   logger.info("");
 }
 
+////////////////////////////////////////
+// INDI wrappers ///////////////////////
+////////////////////////////////////////
+
 FocuserApp::ImageResult FocuserApp::shoot(double exposure) {
   cv::Mat image;
   std::vector<double> sharpnesses;
@@ -206,20 +222,21 @@ FocuserApp::ImageResult FocuserApp::shoot(double exposure) {
   auto sharpness = sum / sharpnesses.size();
   auto delta = solver.addPoint(focusPosition, sharpness);
 
+  logger.info("Sharpness: {}; Delta: {}",
+    formatNumber(sharpness),
+    formatNumber(delta));
+
+  if (sharpness == 0) {
+    logger.error("Invalid image: either all white or all black.");
+    preview(image);
+    std::terminate();
+  }
+
   return {
     image,
     sharpness,
     delta
   };
-}
-
-cv::Mat FocuserApp::getROI(const cv::Mat &image) {
-  const int w = image.cols;
-  const int h = image.rows;
-  const auto rect = cv::Rect(w / 4, h / 4, w / 2, h / 2);
-  const auto roi = image(rect);
-
-  return roi;
 }
 
 int FocuserApp::move(const bool isOutward, const unsigned int steps) {
@@ -237,10 +254,25 @@ int FocuserApp::move(const bool isOutward, const unsigned int steps) {
   // Wait for the vibration to fade
   std::this_thread::sleep_for(1s);
 
+  logger.info("Position: {}", formatNumber(focusPosition));
+
   return focusPosition;
 }
 
-  void FocuserApp::preview(const cv::Mat &image) {
+////////////////////////////////////////
+// Helpers /////////////////////////////
+////////////////////////////////////////
+
+cv::Mat FocuserApp::getROI(const cv::Mat &image) {
+  const int w = image.cols;
+  const int h = image.rows;
+  const auto rect = cv::Rect(w / 4, h / 4, w / 2, h / 2);
+  const auto roi = image(rect);
+
+  return roi;
+}
+
+void FocuserApp::preview(const cv::Mat &image) {
   cv::Mat flipped, preview;
   cv::flip(image, flipped, 1); // Flip horizontally
   cv::resize(flipped, preview, cv::Size(640, 480));

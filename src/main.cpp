@@ -3,17 +3,11 @@
 #include "math/SharpnessEstimator.h"
 #include "math/Solver.h"
 #include "logging/Logger.h"
-#include "utils/utils.h"
 #include "utils/colors.h"
 #include "FocuserApp.h"
+#include <print>
 #include <stacktrace>
 #include <csignal>
-#include <cstdlib>
-#include <ctime>
-#include <print>
-
-namespace fs = std::filesystem;
-using namespace std::chrono_literals;
 
 void onSegfault(int signal) {
   std::println("Segmentation fault:");
@@ -42,27 +36,7 @@ int main(const int argc, const char **argv) {
   FocuserApp app(config, logger, indi, estimator, solver);
   
   if (app.connect()) {
-    app.autoFocus();
-  }
-
-  return 0;
-
-  //////////////////////////////////////
-
-  const std::string dir = joinArgs(argc, argv);
-  const std::vector files = readDir(dir);
-
-  for (auto &file : files) {
-    const cv::Mat image = readImage(file);
-
-    const int w = image.cols;
-    const int h = image.rows;
-    const auto rect = cv::Rect(w / 4, h / 4, w / 2, h / 2);
-    const auto roi = image(rect);
-
-    auto sharpness = SharpnessEstimatorGaussian().getSharpness(roi);
-    auto name = fs::path(file).filename().string();
-    logger.info("{} -> sharpness: {}", name, sharpness);
+    app.autoFocus(FocuserApp::ByEar, true);
   }
 
   return 0;
