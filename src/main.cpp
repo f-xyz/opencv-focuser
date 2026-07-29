@@ -34,9 +34,8 @@ int main(const int argc, const char **argv) {
   Solver solver(logger);
 
   FocuserApp app(config, logger, indi, estimator, solver);
-  
   if (app.connect()) {
-    app.autoFocus(FocuserApp::ByEar, true);
+    app.autoFocus();
   }
 
   return 0;

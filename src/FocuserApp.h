@@ -48,8 +48,8 @@ private:
   bool checkSolution(const Solution &solution);
   bool validateSolution(const Solution &solution);
 
-  bool gatherDataByEar(bool startOutward = true);
-  bool gatherDataLinearly();
+  void gatherDataByEar(bool startOutward = true);
+  void gatherDataLinearly();
 
   void reportCameras();
   void reportFocusers();
@@ -59,15 +59,5 @@ private:
 
   static cv::Mat getROI(const cv::Mat &image);
   static void preview(const cv::Mat &image);
-  static std::string typeToString(Type type) {
-    switch (type) {
-      case ByEar:
-        return "By Ear";
-        break;
-      case Linear:
-        return "Linear";
-        break;
-    }
-    return "Error";
-  }
+  static std::string typeToString(Type type);
 };

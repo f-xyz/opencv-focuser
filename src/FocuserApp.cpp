@@ -21,9 +21,8 @@ bool FocuserApp::connect() {
 
 bool FocuserApp::autoFocus(Type type, bool startOutward) {
   logger.header("Starting auto focus...");
-  logger.info("  type: {}", typeToString(type));
-  logger.info("  startOutward: {}", startOutward);
-  logger.info("");
+  logger.info("  Type: {}", typeToString(type));
+  logger.info("  Direction: {}\n", startOutward ? "outward": "inward");
 
   // Gather data points
   switch (type) {
@@ -41,10 +40,8 @@ bool FocuserApp::autoFocus(Type type, bool startOutward) {
   auto solution = solver.findBestPosition();
   solver.clear();
 
-  // Perform next steps
-  checkSolution(solution);
-
-  return true;
+  // Decide what to do next
+  return checkSolution(solution);
 }
 
 bool FocuserApp::checkSolution(const Solution &solution) {
@@ -84,6 +81,7 @@ bool FocuserApp::checkSolution(const Solution &solution) {
           autoFocus(Type::Linear, false);
         } else {
           logger.error("I did my best, but failed anyway...");
+          return false;
         }
       }
       break;
@@ -135,11 +133,11 @@ bool FocuserApp::validateSolution(const Solution &solution) {
 // Data Gathering //////////////////////
 ////////////////////////////////////////
 
-bool FocuserApp::gatherDataByEar(bool startOutward) {
+void FocuserApp::gatherDataByEar(bool startOutward) {
   bool isFocusingOutward = startOutward;
 
   for (int i = 0; i < config.nIterations; ++i) {
-    logger.info("Iteration #{} of {}", i + 1, config.nIterations);
+    logger.info("Iteration #{} of {} (ByEar)", i + 1, config.nIterations);
 
     auto result = shoot(config.cameraExposure);
 
@@ -156,23 +154,19 @@ bool FocuserApp::gatherDataByEar(bool startOutward) {
     move(isFocusingOutward, config.focuserStepSize);
     logger.info("");
   }
-
-  return true;
 }
 
-bool FocuserApp::gatherDataLinearly() {
+void FocuserApp::gatherDataLinearly() {
   // Move 2 steps inward
   move(false, config.focuserStepSize * 2);
   auto result = shoot(config.cameraExposure);
 
   // Move 1 step outward 4 times
   for (int i = 0; i < 4; ++i) {
-    logger.info("\nIteration #{} of {}", i + 1, config.nIterations);
+    logger.info("\nIteration #{} of {} (Linear)", i + 1, config.nIterations);
     move(true, config.focuserStepSize * 2);
     auto result = shoot(config.cameraExposure);
   }
-
-  return true;
 }
 
 ////////////////////////////////////////
@@ -266,10 +260,14 @@ int FocuserApp::move(const bool isOutward, const unsigned int steps) {
 cv::Mat FocuserApp::getROI(const cv::Mat &image) {
   const int w = image.cols;
   const int h = image.rows;
-  const auto rect = cv::Rect(w / 4, h / 4, w / 2, h / 2);
-  const auto roi = image(rect);
 
-  return roi;
+  const auto rect = cv::Rect(
+    w / 4,
+    h / 4,
+    w / 2,
+    h / 2);
+
+  return image(rect);
 }
 
 void FocuserApp::preview(const cv::Mat &image) {
@@ -279,4 +277,16 @@ void FocuserApp::preview(const cv::Mat &image) {
   cv::imshow("Preview", preview);
   cv::waitKey(0);
   cv::destroyAllWindows();
+}
+
+std::string FocuserApp::typeToString(Type type) {
+  switch (type) {
+  case ByEar:
+    return "ByEar";
+    break;
+  case Linear:
+    return "Linear";
+    break;
+  }
+  return "Error";
 }
