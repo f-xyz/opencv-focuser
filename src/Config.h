@@ -10,12 +10,14 @@ public:
   std::string indiHost = "localhost";
   unsigned int indiPort = 7624u;
 
-  double cameraExposure = 0.02;
+  unsigned int nIterations = 10;
+
+  double cameraExposure = 1;
   unsigned int cameraAverageFrames = 3;
 
   unsigned int focuserStepSize = 500;
   unsigned int focuserBacklash = 100;
-  unsigned int nIterations = 10;
+  unsigned int focuserLimit = 5000;
 
   bool parse(const int argc, const char **argv);
 };

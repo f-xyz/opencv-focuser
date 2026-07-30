@@ -5,7 +5,6 @@
 
 class SharpnessEstimator {
 public:
-  virtual ~SharpnessEstimator() = default;
   virtual double getSharpness(const cv::Mat &image) const = 0;
 
   static cv::Mat getGrayscaleImage(const cv::Mat &image) {

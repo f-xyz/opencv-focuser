@@ -17,14 +17,14 @@ namespace fs = std::filesystem;
 // Strings /////////////////////////////
 ////////////////////////////////////////
 
-inline std::string joinArgs(const int nArgs, const char **args) {
+inline std::string joinArgs(int argc, const char **argv) {
   std::string result;
 
-  for (int i = 1; i < nArgs; ++i) {
-    result += args[i];
-    if (i < nArgs - 1) {
+  for (int i = 1; i < argc; ++i) {
+    if (!result.empty()) {
       result += ' ';
     }
+    result += argv[i];
   }
 
   return result;

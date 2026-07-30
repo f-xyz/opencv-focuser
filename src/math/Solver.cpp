@@ -141,7 +141,7 @@ void Solver::printReport(const std::vector<Point> &table, const Point &best) {
   logger.info("\nFocus position / sharpness:");
 
   for (auto &x : table) {
-    const auto row = std::format("#{:<2} {:<6}: {:.4f} ({})",
+    const auto row = std::format("#{:<2} {:<6}: {:.4f} (x{})",
       x.index,
       formatPosition(x.position),
       x.sharpness,

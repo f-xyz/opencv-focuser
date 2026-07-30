@@ -54,8 +54,10 @@ private:
   void reportCameras();
   void reportFocusers();
 
-  ImageResult shoot(double exposure);
-  int move(const bool isOutward, const unsigned int steps);
+  ImageResult image(double exposure);
+  int focusRel(bool isOutward, unsigned int steps);
+  int focusAbs(unsigned int position);
+  void focusCheckLimits(bool isOutward, unsigned int steps);
 
   static cv::Mat getROI(const cv::Mat &image);
   static void preview(const cv::Mat &image);

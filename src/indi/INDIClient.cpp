@@ -1,5 +1,6 @@
 #include "./INDIClient.h"
 #include "../fits/FitsReader.h"
+#include <exception>
 #include <future>
 #include <indiapi.h>
 #include <opencv2/core/mat.hpp>
@@ -65,11 +66,17 @@ std::future<int> INDIClient::focus(const bool isOutward, const unsigned int step
 
   auto future = getFuture(focusPromise);
 
-  auto &focuser = deviceManager.getFocusers().front();
+  const auto focuser = deviceManager.getFocusers().front();
   const auto device = getDevice(focuser.name.c_str());
 
   const auto direction = device.getSwitch("FOCUS_MOTION");
   const auto directionSwitch = direction.getSwitch();
+
+  if (!direction.isValid()) {
+    logger.error("Is the focuser device connected and running?");
+    std::terminate();
+  }
+
   directionSwitch->reset();
   directionSwitch->at(isOutward ? 1 : 0)->setState(ISS_ON);
   sendNewSwitch(directionSwitch);
