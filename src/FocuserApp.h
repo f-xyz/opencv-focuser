@@ -56,7 +56,7 @@ private:
 
   ImageResult image(double exposure);
   int focusRel(bool isOutward, unsigned int steps);
-  int focusAbs(unsigned int position);
+  int focusAbs(int position);
   void focusCheckLimits(bool isOutward, unsigned int steps);
 
   static cv::Mat getROI(const cv::Mat &image);

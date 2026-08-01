@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 #include <vector>
 #include <opencv2/imgcodecs.hpp>
 #include "../fits/FitsReader.h"
@@ -44,9 +45,9 @@ inline std::string_view trim(std::string_view str) {
   return ltrim(rtrim(str));
 }
 
-inline std::string formatNumber(double x) {
+template <typename T> requires std::is_arithmetic_v<T>
+inline std::string formatNumber(T x) {
   const auto str = std::to_string(x);
-
   if (x > 0) {
     return std::format("{}", rgb(str, 0, 128, 0));
   } else if (x < 0) {

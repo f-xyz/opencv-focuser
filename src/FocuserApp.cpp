@@ -1,5 +1,6 @@
 #include "FocuserApp.h"
 #include "utils/colors.h"
+#include "utils/utils.h"
 #include <algorithm>
 #include <cstdlib>
 #include <exception>
@@ -24,21 +25,18 @@ bool FocuserApp::connect() {
 bool FocuserApp::autoFocus(Type type, bool startOutward) {
   logger.header("Starting auto focus...");
   logger.info("  Type: {}", typeToString(type));
-  logger.info("  Direction: {}\n", startOutward ? "outward": "inward");
+  logger.info("  Direction: {}", startOutward ? "outward": "inward");
+  logger.info("  Focuser step size: {}\n", config.focuserStepSize);
 
   // Gather data points
-  switch (type) {
-    case ByEar:
-      gatherDataByEar(startOutward);
-      break;
-
-    case Linear:
-      gatherDataLinearly();
-      break;
+  if (type == Type::ByEar) {
+    gatherDataByEar(startOutward);
+  } else {
+    gatherDataLinearly();
   }
 
   // Find solution
-  logger.header("Solving...");
+  logger.header("\nSolving...");
   auto solution = solver.findBestPosition();
   solver.clear();
 
@@ -51,9 +49,7 @@ bool FocuserApp::checkSolution(const Solution &solution) {
 
   switch (solution.type) {
     case Inward: {
-      logger.info("  Ideal position is: {}", bold("inward"));
-      logger.info("");
-
+      logger.info("  Ideal position is: {}\n", bold("inward"));
       focusAbs(solution.bestPoint.position);
       autoFocus(Type::ByEar, false);
       break;
@@ -61,8 +57,6 @@ bool FocuserApp::checkSolution(const Solution &solution) {
 
     case Outward: {
       logger.info("  Ideal position is: {}\n", bold("outward"));
-      logger.info("");
-
       focusAbs(solution.bestPoint.position);
       autoFocus(Type::ByEar, true);
       break;
@@ -72,22 +66,15 @@ bool FocuserApp::checkSolution(const Solution &solution) {
       logger.info("  Ideal position is: {}\n", bold("around"));
 
       if (validateSolution(solution)) {
-        logger.header("Done!");
+        logger.header("Done! @{}", formatNumber(focusPosition));
+        std::system("canberra-gtk-play -i complete &");
       } else {
         // Not sharp enough! Trying again with smaller steps...
         if (config.focuserStepSize /= 5) {
-          logger.info("Press any key to start from the best position.");
-          std::cin.get();
-          
-          int delta = solution.bestPoint.position - focusPosition;
-          if (delta != 0) {
-            logger.info("Moving to be best position...");
-            focusRel(false, std::abs(delta));
-          }
-
-          autoFocus(Type::Linear, false);
+          // TODO: think twice about Type::Linear!
+          autoFocus(Type::ByEar, false);
         } else {
-          logger.error("I did my best, but failed anyway...");
+          logger.error("I did my best... @{}", formatNumber(focusPosition));
           return false;
         }
       }
@@ -105,16 +92,7 @@ bool FocuserApp::validateSolution(const Solution &solution) {
   auto bestPoint = solution.bestPoint;
 
   logger.info("  Ideal sharpness: {}", idealPoint.sharpness);
-  logger.info("  Best sharpness: {}", bestPoint.sharpness);
-  
-  if (idealPoint.sharpness > bestPoint.sharpness) {
-    logger.info("  The ideal (predicted) point is better.");
-    logger.info("");
-  } else {
-    idealPoint = bestPoint;
-    logger.info("  The best point is better.");
-    logger.info("");
-  }
+  logger.info("  Ideal position: {}\n", idealPoint.position);
 
   // Move to the ideal position
   focusAbs(idealPoint.position);
@@ -123,11 +101,11 @@ bool FocuserApp::validateSolution(const Solution &solution) {
   // Capture an image and compare it with the best
   solver.addPoint(bestPoint.position, bestPoint.sharpness);
   auto result = image(config.cameraExposure);
-  preview(result.image);
+  // preview(result.image);
   logger.info("");
 
   // Is not worse than the best?
-  return result.delta >= 0;
+  return result.delta <= config.precision;
 }
 
 ////////////////////////////////////////
@@ -138,7 +116,8 @@ void FocuserApp::gatherDataByEar(bool startOutward) {
   bool isFocusingOutward = startOutward;
 
   for (int i = 0; i < config.nIterations; ++i) {
-    logger.info("Iteration #{} of {} (ByEar)", i + 1, config.nIterations);
+    logger.info("Iteration #{} of {} (ByEar) @{}",
+      i + 1, config.nIterations, formatNumber(focusPosition));
 
     auto result = image(config.cameraExposure);
 
@@ -241,7 +220,7 @@ int FocuserApp::focusRel(bool isOutward, unsigned int steps) {
     focusPosition = indi.focus(true, steps).get();
   } else {
     // Move inward
-    const auto inwardSteps = steps + config.focuserBacklash;
+    int inwardSteps = steps + config.focuserBacklash;
     focusPosition = indi.focus(false, inwardSteps).get();
     // And move outward a bit to compensate the gearbox backlash
     std::this_thread::sleep_for(100ms);
@@ -256,10 +235,12 @@ int FocuserApp::focusRel(bool isOutward, unsigned int steps) {
   return focusPosition;
 }
 
-int FocuserApp::focusAbs(unsigned int position) {
-  int delta = focusPosition - position;
+int FocuserApp::focusAbs(int position) {
+  int delta = position - focusPosition;
   if (delta != 0) {
-    return focusRel(delta > 0, delta);
+    bool isOutward = delta > 0;
+    unsigned int steps = std::abs(delta);
+    return focusRel(isOutward, steps);
   } else {
     return focusPosition;
   }
