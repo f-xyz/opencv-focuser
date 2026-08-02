@@ -1,9 +1,15 @@
 #include "FocuserApp.h"
+#include "math/ImageStretcher.h"
 #include "utils/colors.h"
 #include "utils/utils.h"
 #include <algorithm>
 #include <cstdlib>
 #include <exception>
+#include <opencv2/core/hal/interface.h>
+
+FocuserApp::~FocuserApp() {
+  cv::destroyAllWindows();
+}
 
 bool FocuserApp::connect() {
   logger.header("Connecting...");
@@ -105,7 +111,7 @@ bool FocuserApp::validateSolution(const Solution &solution) {
   logger.info("");
 
   // Is not worse than the best?
-  return result.delta <= config.precision;
+  return result.sharpness >= bestPoint.sharpness;
 }
 
 ////////////////////////////////////////
@@ -200,9 +206,10 @@ FocuserApp::ImageResult FocuserApp::image(double exposure) {
     formatNumber(sharpness),
     formatNumber(delta));
 
+  preview(image);
+
   if (sharpness == 0) {
     logger.error("Invalid image: either all white or all black.");
-    preview(image);
     std::terminate();
   }
 
@@ -261,25 +268,33 @@ void FocuserApp::focusCheckLimits(bool isOutward, unsigned int steps) {
 ////////////////////////////////////////
 
 cv::Mat FocuserApp::getROI(const cv::Mat &image) {
-  const int w = image.cols;
-  const int h = image.rows;
-
-  const auto rect = cv::Rect(
-    w / 4,
-    h / 4,
-    w / 2,
-    h / 2);
-
-  return image(rect);
+  return image({
+    image.cols / 4,
+    image.rows / 4,
+    image.cols / 2,
+    image.rows / 2
+  });
 }
 
 void FocuserApp::preview(const cv::Mat &image) {
-  cv::Mat flipped, preview;
-  cv::flip(image, flipped, 1); // Flip horizontally
-  cv::resize(flipped, preview, cv::Size(640, 480));
+  cv::Mat preview;
+
+  cv::resize(image, preview, cv::Size(640, 480));
+  cv::flip(preview, preview, 1); // Flip horizontally
+
+  preview.convertTo(preview, CV_8U);
+
+  ImageStretcher stretcher(preview);
+  cv::Mat stretched = preview = stretcher.stretch({
+    .type = ImageStretcherOptions::CLAHE,
+    .claheClipLimit = 2,
+    .claheTileSize = 8,
+    .asinhFactor = 2,
+    .denoiseH = 0
+  });
+
   cv::imshow("Preview", preview);
-  cv::waitKey(0);
-  cv::destroyAllWindows();
+  cv::waitKey(1);
 }
 
 std::string FocuserApp::typeToString(Type type) {

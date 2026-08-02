@@ -20,11 +20,6 @@ bool Config::parse(const int argc, const char **argv) {
     "Number of focus measurement iterations.")
     ->capture_default_str();
 
-  app.add_option("-p,--precision",
-    precision,
-    "Target precision, % of sharpness delta.")
-    ->capture_default_str();
-
   app.add_option("-e,--exposure",
     cameraExposure,
     "Camera exposure duration in seconds.")

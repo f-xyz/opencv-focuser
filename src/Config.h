@@ -11,12 +11,11 @@ public:
   unsigned int indiPort = 7624u;
 
   unsigned int nIterations = 5;
-  double precision = 0.1;
 
   double cameraExposure = 1;
   unsigned int cameraAverageFrames = 1;
 
-  unsigned int focuserStepSize = 100;
+  unsigned int focuserStepSize = 500;
   unsigned int focuserBacklash = 100;
   unsigned int focuserLimit = 5000;
 

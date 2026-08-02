@@ -41,6 +41,8 @@ public:
     estimator(estimator),
     solver(solver) {}
 
+  ~FocuserApp();
+
   bool connect();
   bool autoFocus(Type type = Type::ByEar, bool startOutward = true);
 
