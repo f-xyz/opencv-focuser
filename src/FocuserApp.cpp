@@ -55,8 +55,9 @@ bool FocuserApp::checkSolution(const Solution &solution) {
 
   switch (solution.type) {
     case Inward: {
-      logger.info("  Ideal position is: {}\n", bold("inward"));
+      logger.info("Ideal position is: {}\n", bold("inward"));
       focusAbs(solution.bestPoint.position);
+      logger.info("");
       autoFocus(Type::ByEar, false);
       break;
     }
@@ -64,6 +65,7 @@ bool FocuserApp::checkSolution(const Solution &solution) {
     case Outward: {
       logger.info("  Ideal position is: {}\n", bold("outward"));
       focusAbs(solution.bestPoint.position);
+      logger.info("");
       autoFocus(Type::ByEar, true);
       break;
     }
@@ -77,7 +79,6 @@ bool FocuserApp::checkSolution(const Solution &solution) {
       } else {
         // Not sharp enough! Trying again with smaller steps...
         if (config.focuserStepSize /= 5) {
-          // TODO: think twice about Type::Linear!
           autoFocus(Type::ByEar, false);
         } else {
           logger.error("I did my best... @{}", formatNumber(focusPosition));
@@ -107,7 +108,6 @@ bool FocuserApp::validateSolution(const Solution &solution) {
   // Capture an image and compare it with the best
   solver.addPoint(bestPoint.position, bestPoint.sharpness);
   auto result = image(config.cameraExposure);
-  // preview(result.image);
   logger.info("");
 
   // Is not worse than the best?
@@ -122,7 +122,7 @@ void FocuserApp::gatherDataByEar(bool startOutward) {
   bool isFocusingOutward = startOutward;
 
   for (int i = 0; i < config.nIterations; ++i) {
-    logger.info("Iteration #{} of {} (ByEar) @{}",
+    logger.info("Iteration #{} of {} @{}",
       i + 1, config.nIterations, formatNumber(focusPosition));
 
     auto result = image(config.cameraExposure);
@@ -278,14 +278,15 @@ cv::Mat FocuserApp::getROI(const cv::Mat &image) {
 
 void FocuserApp::preview(const cv::Mat &image) {
   cv::Mat preview;
+  cv::Mat roi(getROI(image));
 
-  cv::resize(image, preview, cv::Size(640, 480));
+  cv::resize(roi, preview, cv::Size(640, 480));
   cv::flip(preview, preview, 1); // Flip horizontally
 
   preview.convertTo(preview, CV_8U);
 
   ImageStretcher stretcher(preview);
-  cv::Mat stretched = preview = stretcher.stretch({
+  cv::Mat stretched = stretcher.stretch({
     .type = ImageStretcherOptions::CLAHE,
     .claheClipLimit = 2,
     .claheTileSize = 8,
@@ -293,7 +294,7 @@ void FocuserApp::preview(const cv::Mat &image) {
     .denoiseH = 0
   });
 
-  cv::imshow("Preview", preview);
+  cv::imshow("Preview", stretched);
   cv::waitKey(1);
 }
 
