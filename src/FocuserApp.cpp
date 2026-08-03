@@ -267,15 +267,6 @@ void FocuserApp::focusCheckLimits(bool isOutward, unsigned int steps) {
 // Helpers /////////////////////////////
 ////////////////////////////////////////
 
-cv::Mat FocuserApp::getROI(const cv::Mat &image) {
-  return image({
-    image.cols / 4,
-    image.rows / 4,
-    image.cols / 2,
-    image.rows / 2
-  });
-}
-
 void FocuserApp::preview(const cv::Mat &image) {
   cv::Mat preview;
   cv::Mat roi(getROI(image));
@@ -296,6 +287,15 @@ void FocuserApp::preview(const cv::Mat &image) {
 
   cv::imshow("Preview", stretched);
   cv::waitKey(1);
+}
+
+cv::Mat FocuserApp::getROI(const cv::Mat &image) {
+  return image({
+    image.cols / 4,
+    image.rows / 4,
+    image.cols / 2,
+    image.rows / 2
+  });
 }
 
 std::string FocuserApp::typeToString(Type type) {
