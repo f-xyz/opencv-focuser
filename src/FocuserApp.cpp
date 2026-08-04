@@ -196,6 +196,8 @@ FocuserApp::ImageResult FocuserApp::image(double exposure) {
     auto roi = getROI(image);
     auto sharpness = estimator.getSharpness(image);
     sharpnesses.push_back(sharpness);
+
+    preview(image);
   }
 
   auto sum = std::ranges::fold_left( sharpnesses, 0.0, std::plus {});
@@ -205,8 +207,6 @@ FocuserApp::ImageResult FocuserApp::image(double exposure) {
   logger.info("Sharpness: {}; Delta: {}",
     formatNumber(sharpness),
     formatNumber(delta));
-
-  preview(image);
 
   if (sharpness == 0) {
     logger.error("Invalid image: either all white or all black.");
