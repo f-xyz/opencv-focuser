@@ -43,7 +43,7 @@ public:
   explicit Solver(Logger &logger) : logger(logger) {}
 
   double addPoint(int position, double sharpness);
-  Solution findBestPosition();
+  Solution findIdealPosition();
 
   void clear() {
     measurements.clear();

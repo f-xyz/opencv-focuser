@@ -11,7 +11,7 @@ double Solver::addPoint(int position, double sharpness) {
   return delta;
 }
 
-Solution Solver::findBestPosition() {
+Solution Solver::findIdealPosition() {
   auto table = getAveragedMeasurements();
   auto bestPoint = findBestPoint(table);
   auto resultType = findResultType(table, bestPoint);

@@ -43,7 +43,7 @@ bool FocuserApp::autoFocus(Type type, bool startOutward) {
 
   // Find solution
   logger.header("\nSolving...");
-  auto solution = solver.findBestPosition();
+  auto solution = solver.findIdealPosition();
   solver.clear();
 
   // Decide what to do next
