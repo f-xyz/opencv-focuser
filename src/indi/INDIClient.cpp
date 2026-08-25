@@ -1,4 +1,5 @@
 #include "./INDIClient.h"
+#include "../utils/utils.h"
 #include "../fits/FitsReader.h"
 #include <exception>
 #include <future>
@@ -135,8 +136,11 @@ void INDIClient::updateProperty(const INDI::Property property) {
   const std::string_view propertyName(property.getName());
   logger.debug("Updated property: {} / {}", deviceName, propertyName);
 
-  if (property.isNameMatch("CCD1")) { // Image
-    onCameraImage(property);
+  if (property.isNameMatch("CCD1")) {
+    const auto camera = deviceManager.getCameras().front();
+    if (deviceName == camera.name) {
+      onCameraImage(property);
+    }
   } else if (property.isNameMatch("REL_FOCUS_POSITION")) {
     onFocuserMotion(property);
   }
@@ -193,7 +197,7 @@ void INDIClient::onCameraImage(const INDI::Property &property) {
 
     if (format == ".fits") {
       const auto image = FitsReader().read(data, size);
-      imagePromise->set_value(image);
+      imagePromise->set_value(std::move(image));
       imagePromise.reset();
     } else {
       logger.error("  Unknown format: {}", format);

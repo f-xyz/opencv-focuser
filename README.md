@@ -21,7 +21,7 @@ sudo apt install indi-full indi-asi
 ## Building
 
 ```sh
-./build.sh
+./build.sh -n10 -a3 -e1 -s500 2>/dev/null
 ```
 
 ## Starting INDI server

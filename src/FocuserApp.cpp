@@ -1,11 +1,15 @@
 #include "FocuserApp.h"
-#include "math/ImageStretcher.h"
+#include "math/ImagePreview.h"
 #include "utils/colors.h"
 #include "utils/utils.h"
 #include <algorithm>
 #include <cstdlib>
 #include <exception>
+#include <opencv2/core.hpp>
+#include <opencv2/core/base.hpp>
 #include <opencv2/core/hal/interface.h>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 FocuserApp::~FocuserApp() {
   cv::destroyAllWindows();
@@ -30,7 +34,6 @@ bool FocuserApp::connect() {
 
 bool FocuserApp::autoFocus(Type type, bool startOutward) {
   logger.header("Starting auto focus...");
-  logger.info("  Type: {}", typeToString(type));
   logger.info("  Direction: {}", startOutward ? "outward": "inward");
   logger.info("  Focuser step size: {}\n", config.focuserStepSize);
 
@@ -98,7 +101,7 @@ bool FocuserApp::validateSolution(const Solution &solution) {
   auto idealPoint = solution.idealPoint;
   auto bestPoint = solution.bestPoint;
 
-  logger.info("  Ideal sharpness: {}", idealPoint.sharpness);
+  logger.info("  Ideal sharpness: {:.2f}", idealPoint.sharpness);
   logger.info("  Ideal position: {}\n", idealPoint.position);
 
   // Move to the ideal position
@@ -268,25 +271,7 @@ void FocuserApp::focusCheckLimits(bool isOutward, unsigned int steps) {
 ////////////////////////////////////////
 
 void FocuserApp::preview(const cv::Mat &image) {
-  cv::Mat preview;
-  cv::Mat roi(getROI(image));
-
-  cv::resize(roi, preview, cv::Size(640, 480));
-  cv::flip(preview, preview, 1); // Flip horizontally
-
-  preview.convertTo(preview, CV_8U);
-
-  ImageStretcher stretcher(preview);
-  cv::Mat stretched = stretcher.stretch({
-    .type = ImageStretcherOptions::CLAHE,
-    .claheClipLimit = 2,
-    .claheTileSize = 8,
-    .asinhFactor = 2,
-    .denoiseH = 0
-  });
-
-  cv::imshow("Preview", stretched);
-  cv::waitKey(1);
+  ImagePreview().preview(image);
 }
 
 cv::Mat FocuserApp::getROI(const cv::Mat &image) {

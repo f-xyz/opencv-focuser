@@ -20,7 +20,7 @@ Solution Solver::findIdealPosition() {
 
   auto n = table.size();
   if (n < 3) {
-    logger.error("I need at least 3 data points,\nbut I have only {}.\n", n);
+    logger.error("I need at least 3 data points, but I have only {}.\n", n);
     return {
       resultType,
       bestPoint,

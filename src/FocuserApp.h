@@ -61,7 +61,8 @@ private:
   int focusAbs(int position);
   void focusCheckLimits(bool isOutward, unsigned int steps);
 
-  static void preview(const cv::Mat &image);
+  void preview(const cv::Mat &image);
+
   static cv::Mat getROI(const cv::Mat &image);
   static std::string typeToString(Type type);
 };

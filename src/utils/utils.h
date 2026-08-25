@@ -1,16 +1,20 @@
 #pragma once
 
+#include "../fits/FitsReader.h"
+#include "colors.h"
 #include <chrono>
 #include <filesystem>
 #include <functional>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+#include <regex>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <type_traits>
+#include <utility>
 #include <vector>
-#include <opencv2/imgcodecs.hpp>
-#include "../fits/FitsReader.h"
-#include "colors.h"
 
 namespace fs = std::filesystem;
 
@@ -80,11 +84,67 @@ inline std::vector<std::string> readDir(const fs::path &dir) {
   return result;
 }
 
+inline std::string getTmpFileName(const std::string &dir) {
+  std::vector<std::string> existing = readDir(dir);
+  std::vector<int> indexes;
+
+  std::ranges::transform(existing,
+    std::back_inserter(indexes),
+    [](const std::string &file) {
+      std::smatch matches;
+      std::regex regex = std::regex(R"((\d+).*?$)");
+      std::regex_search(file, matches, regex);
+      int index = matches.size() ? std::stoi(matches[0].str()) : 0;
+      return index;
+  });
+
+  int maxIndex = indexes.empty() ? 0 : *std::ranges::max_element(indexes);
+  int newIndex = maxIndex + 1;
+
+  std::string out = dir.ends_with('/') ? dir : dir + '/';
+  return std::format("{}{}", out, newIndex);
+}
+
+////////////////////////////////////////
+// Images //////////////////////////////
+////////////////////////////////////////
+
 inline cv::Mat readImage(const std::string &file) {
   auto ext = fs::path(file).extension().string();
   return ext == ".fit" || ext == ".fits"
     ? FitsReader().read(file)
     : cv::imread(file);
+}
+
+inline std::pair<double, double> getImageMinMax(const cv::Mat &image) {
+  double min, max;
+  cv::minMaxLoc(image, &min, &max);
+  return {min, max};
+}
+
+inline std::string getImageInfo(const cv::Mat &image) {
+  auto type = cv::typeToString(image.type());
+  auto minmax = getImageMinMax(image);
+
+  return std::format("{} {}x{} [{}-{}]",
+    type, image.cols, image.rows, minmax.first, minmax.second);
+}
+
+inline std::vector<float> getImageHistogram(const cv::Mat &image, int histSize = 16) {
+  cv::Mat lab;
+  cv::cvtColor(image, lab, cv::COLOR_BGR2Lab);
+
+  const auto minmax = getImageMinMax(image);
+  const int channels[] = {0};
+  const float range[] = {static_cast<float>(minmax.first), static_cast<float>(minmax.second + 1e-6)};
+  const float *ranges[] = {range};
+
+  cv::Mat hist;
+  cv::calcHist(&lab, 1, channels, cv::noArray(),
+    hist, 1, &histSize, ranges);
+
+  // Converts cv::Mat<float> -> std::vector<float>
+  return hist;
 }
 
 ////////////////////////////////////////
