@@ -10,10 +10,10 @@ public:
   std::string indiHost = "localhost";
   unsigned int indiPort = 7624u;
 
-  unsigned int nIterations = 5;
+  unsigned int nIterations = 10;
 
-  double cameraExposure = 1;
-  unsigned int cameraAverageFrames = 1;
+  double cameraExposure = 1; // Seconds
+  unsigned int cameraAverageFrames = 3;
 
   unsigned int focuserStepSize = 500;
   unsigned int focuserBacklash = 100;
