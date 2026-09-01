@@ -64,5 +64,4 @@ private:
   void preview(const cv::Mat &image);
 
   static cv::Mat getROI(const cv::Mat &image);
-  static std::string typeToString(Type type);
 };

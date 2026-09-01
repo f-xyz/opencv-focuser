@@ -271,7 +271,11 @@ void FocuserApp::focusCheckLimits(bool isOutward, unsigned int steps) {
 ////////////////////////////////////////
 
 void FocuserApp::preview(const cv::Mat &image) {
-  ImagePreview().preview(image);
+  ImagePreview().preview(image, {
+    .roiDivider = 2,
+    .nHistogramTopBins = 10,
+    .claheClipLimit = 1
+  });
 }
 
 cv::Mat FocuserApp::getROI(const cv::Mat &image) {
@@ -281,16 +285,4 @@ cv::Mat FocuserApp::getROI(const cv::Mat &image) {
     image.cols / 2,
     image.rows / 2
   });
-}
-
-std::string FocuserApp::typeToString(Type type) {
-  switch (type) {
-  case ByEar:
-    return "ByEar";
-    break;
-  case Linear:
-    return "Linear";
-    break;
-  }
-  return "Error";
 }

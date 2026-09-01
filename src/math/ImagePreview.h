@@ -4,24 +4,22 @@
 #include <tuple>
 
 struct ImagePreviewOptions {
-  // TODO
+  int roiDivider = 2;
+  int nHistogramTopBins = 10;
+  double claheClipLimit = 1;
 };
 
 class ImagePreview {
 public:
 
   void preview(const cv::Mat &image, const ImagePreviewOptions &options = {}) {
-    auto roi = getROI(image, 2);
+    auto roi = getROI(image, options.roiDivider);
     auto norm = normalize(roi);
     auto gray = lightness(norm);
-    auto [black, white] = soft_range(gray, 10);
+    auto [black, white] = soft_range(gray, options.nHistogramTopBins);
     auto clamped = clamp(gray, black, white);
-    auto stretched = clahe(clamped, 10, 8);
+    auto stretched = clahe(clamped, options.claheClipLimit);
 
-    // std::println("Black point: {}", black);
-    // std::println("White point: {}", white);
-
-    // show(clamped);
     show(stretched);
   }
 
