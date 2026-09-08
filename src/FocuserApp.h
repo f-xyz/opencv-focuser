@@ -13,6 +13,14 @@
 using namespace std::chrono_literals;
 
 class FocuserApp final {
+  enum Type { ByEar, Linear };
+
+  struct ImageResult {
+    cv::Mat image {};
+    double sharpness = 0;
+    double delta = 0;
+  };
+
   Config &config;
   Logger &logger;
   INDIClient &indi;
@@ -21,18 +29,6 @@ class FocuserApp final {
   int focusPosition = 0;
 
 public:
-
-  enum Type {
-    ByEar,
-    Linear
-  };
-
-  struct ImageResult {
-    cv::Mat image {};
-    double sharpness = 0;
-    double delta = 0;
-  };
-
   explicit FocuserApp(Config &config, Logger &logger, INDIClient &indi,
     SharpnessEstimator &estimator, Solver &solver) :
     config(config),
