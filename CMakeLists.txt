@@ -33,3 +33,8 @@ target_link_libraries(focuser PRIVATE
   PkgConfig::INDI
   stdc++exp
 )
+
+include(GNUInstallDirs)
+install(TARGETS focuser
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)

@@ -1,2 +1,17 @@
 CompileFlags:
-  Add: [-fno-builtin-std-forward_like]
+  CompilationDatabase: "build"
+  Add: [
+    -std=c++23,
+    -Wall,
+    -Wextra,
+    -Wpedantic,
+    -Iinclude/,
+    -Iastroutils/include,
+    -I/usr/include/opencv4
+  ]
+  Remove: [
+    -fcondition-coverage,
+    -fmodules-ts,
+    -fdeps-format=*,
+    -fmodule-mapper=*
+  ]
