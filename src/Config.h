@@ -11,7 +11,7 @@ public:
   unsigned int indiPort = 7624u;
 
   unsigned int nIterations = 5;
-  unsigned int tolerance = 0;
+  double tolerance = 0;
 
   double cameraExposure = 1; // Seconds
   unsigned int cameraAverageFrames = 5;
