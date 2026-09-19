@@ -4,12 +4,12 @@
 bool Config::parse(const int argc, const char **argv) {
   CLI::App app {};
 
-  app.add_option("--host",
+  app.add_option("--indi-host",
     indiHost,
     "INDI server host.")
     ->capture_default_str();
 
-  app.add_option("--port",
+  app.add_option("--indi-port",
     indiPort,
     "INDI server port.")
     ->check(CLI::Range(1u, 65535u))
@@ -18,6 +18,11 @@ bool Config::parse(const int argc, const char **argv) {
   app.add_option("-n,--iterations",
     nIterations,
     "Number of focus measurement iterations.")
+    ->capture_default_str();
+
+  app.add_option("-t,--tolerance",
+    tolerance,
+    "Precision tolerance.")
     ->capture_default_str();
 
   app.add_option("-e,--exposure",
@@ -44,7 +49,7 @@ bool Config::parse(const int argc, const char **argv) {
 
   app.add_option("-l,--limit",
     focuserLimit,
-    "Maximum focuser position from zero (the initial point).")
+    "Maximum focuser movement from the initial position.")
     ->capture_default_str();
 
   try {

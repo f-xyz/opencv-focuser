@@ -114,7 +114,8 @@ bool FocuserApp::validateSolution(const Solution &solution) {
   logger.info("");
 
   // Is not worse than the best?
-  return result.sharpness >= bestPoint.sharpness;
+  const auto delta = result.sharpness - bestPoint.sharpness;
+  return std::abs(delta) <= config.tolerance;
 }
 
 ////////////////////////////////////////
