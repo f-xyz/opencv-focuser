@@ -98,8 +98,11 @@ bool FocuserApp::checkSolution(const Solution &solution) {
 bool FocuserApp::validateSolution(const Solution &solution) {
   logger.header("Validating the solution...");
 
-  auto idealPoint = solution.idealPoint;
   auto bestPoint = solution.bestPoint;
+  auto idealPoint = solution.idealPoint;
+
+  logger.info("  Best sharpness: {:.2f}", idealPoint.sharpness);
+  logger.info("  Best position: {}\n", idealPoint.position);
 
   logger.info("  Ideal sharpness: {:.2f}", idealPoint.sharpness);
   logger.info("  Ideal position: {}\n", idealPoint.position);
@@ -114,8 +117,13 @@ bool FocuserApp::validateSolution(const Solution &solution) {
   logger.info("");
 
   // Is not worse than the best?
-  const auto delta = result.sharpness - bestPoint.sharpness;
-  return std::abs(delta) <= config.tolerance;
+  if (result.sharpness >= bestPoint.sharpness) {
+    return true;
+  } else if (bestPoint.sharpness - result.sharpness >= config.tolerance) {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 ////////////////////////////////////////
@@ -125,7 +133,7 @@ bool FocuserApp::validateSolution(const Solution &solution) {
 void FocuserApp::gatherDataByEar(bool startOutward) {
   bool isFocusingOutward = startOutward;
 
-  for (int i = 0; i < config.nIterations; ++i) {
+  for (std::size_t i = 0; i < config.nIterations; ++i) {
     logger.info("Iteration #{} of {} @{}",
       i + 1, config.nIterations, formatNumber(focusPosition));
 
@@ -166,7 +174,7 @@ void FocuserApp::gatherDataLinearly() {
 void FocuserApp::reportCameras() {
   logger.info("Cameras:");
   const auto cameras = indi.getCameras();
-  for (int i = 0; i < cameras.size(); ++i) {
+  for (std::size_t i = 0; i < cameras.size(); ++i) {
     auto marker = i == 0 ? '>' : '*';
     auto camera = cameras[i];
     logger.info("  {} {}: {}x{}", marker,
@@ -178,7 +186,7 @@ void FocuserApp::reportCameras() {
 void FocuserApp::reportFocusers() {
   logger.info("Focusers:");
   const auto focusers = indi.getFocusers();
-  for (int i = 0; i < focusers.size(); ++i) {
+  for (std::size_t i = 0; i < focusers.size(); ++i) {
     auto marker = i == 0 ? '>' : '*';
     auto focuser = focusers[i];
     logger.info("  {} {}: {}", marker, focuser.name, focuser.position);
@@ -194,7 +202,7 @@ FocuserApp::ImageResult FocuserApp::image(double exposure) {
   cv::Mat image;
   std::vector<double> sharpnesses;
 
-  for (int i = 0; i < config.cameraAverageFrames; ++i) {
+  for (std::size_t i = 0; i < config.cameraAverageFrames; ++i) {
     image = indi.image(exposure).get();
 
     auto roi = getROI(image);
@@ -261,7 +269,7 @@ void FocuserApp::focusCheckLimits(bool isOutward, unsigned int steps) {
   int signedSteps = isOutward ? steps : -steps;
   int nextPosition = focusPosition + signedSteps;
 
-  if (std::abs(nextPosition) > config.focuserLimit) {
+  if (std::abs(nextPosition) > static_cast<int>(config.focuserLimit)) {
     logger.error("Focuser reached its limit!");
     std::terminate();
   }
